@@ -68,27 +68,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Helm
-        uses: azure/setup-helm@v3
-        with:
-          version: latest
-
-      - name: Update chart version
+      - name: Extract version from tag
+        id: version
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          sed -i "s/version:.*/version: $VERSION/" chart/Chart.yaml
-          sed -i "s/appVersion:.*/appVersion: \"$VERSION\"/" chart/Chart.yaml
-          sed -i "s/tag:.*/tag: \"$VERSION\"/" chart/values.yaml
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Package Helm chart
-        run: |
-          helm package chart/ --destination .deploy
-
-      - name: Upload Helm chart as artifact
-        uses: actions/upload-artifact@v4
+      - name: Push Helm chart to registry
+        uses: bsord/helm-push@v4
         with:
-          name: helm-chart
-          path: .deploy/*.tgz
+          registry-url: https://museum-vjm6yelyza-as.a.run.app/
+          username: megane
+          password: 147973
+          chart-folder: chart
+          force: true
+          version: ${{ steps.version.outputs.VERSION }}
+          appVersion: ${{ steps.version.outputs.VERSION }}
 
   deploy-staging:
     name: Deploy to Staging
