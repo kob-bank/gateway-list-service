@@ -2,7 +2,7 @@
 
 # Image configuration
 image:
-  repository: your-registry/gateway-list-service
+  repository: registry.digitalocean.com/kob-payment/gateway-list-service
   tag: "latest"
   pullPolicy: IfNotPresent
 
