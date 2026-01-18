@@ -1,0 +1,208 @@
+name: CD
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/gateway-list-service
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=,format=short
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  publish-helm-chart:
+    name: Publish Helm Chart
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: latest
+
+      - name: Update chart version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          sed -i "s/version:.*/version: $VERSION/" chart/Chart.yaml
+          sed -i "s/appVersion:.*/appVersion: \"$VERSION\"/" chart/Chart.yaml
+          sed -i "s/tag:.*/tag: \"$VERSION\"/" chart/values.yaml
+
+      - name: Package Helm chart
+        run: |
+          helm package chart/ --destination .deploy
+
+      - name: Upload Helm chart as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-chart
+          path: .deploy/*.tgz
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-and-push, publish-helm-chart]
+    environment:
+      name: staging
+      url: https://gateway-list-staging.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Helm chart
+        uses: actions/download-artifact@v4
+        with:
+          name: helm-chart
+          path: .deploy
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: latest
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: latest
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > ${HOME}/.kube/config
+
+      - name: Deploy with Helm
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          helm upgrade --install gateway-list-service .deploy/*.tgz \
+            --namespace gateway-staging \
+            --create-namespace \
+            --set image.tag="${VERSION}" \
+            --set ingress.hosts[0].host="gateway-list-staging.example.com" \
+            --set config.nodeEnv=staging \
+            --set config.managerApi.token="${{ secrets.STAGING_INTERNAL_API_TOKEN }}" \
+            --set config.redis.password="${{ secrets.STAGING_REDIS_PASSWORD }}" \
+            --wait \
+            --timeout 5m
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/gateway-list-service-api -n gateway-staging
+          kubectl get pods -n gateway-staging -l app.kubernetes.io/component=api
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-and-push, publish-helm-chart, deploy-staging]
+    environment:
+      name: production
+      url: https://gateway-list.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Helm chart
+        uses: actions/download-artifact@v4
+        with:
+          name: helm-chart
+          path: .deploy
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: latest
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: latest
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ${HOME}/.kube/config
+
+      - name: Deploy with Helm
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          helm upgrade --install gateway-list-service .deploy/*.tgz \
+            --namespace gateway-production \
+            --create-namespace \
+            --set image.tag="${VERSION}" \
+            --set ingress.hosts[0].host="gateway-list.example.com" \
+            --set config.nodeEnv=production \
+            --set config.managerApi.token="${{ secrets.PRODUCTION_INTERNAL_API_TOKEN }}" \
+            --set config.redis.password="${{ secrets.PRODUCTION_REDIS_PASSWORD }}" \
+            --wait \
+            --timeout 5m
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/gateway-list-service-api -n gateway-production
+          kubectl get pods -n gateway-production -l app.kubernetes.io/component=api
+
+      - name: Run smoke tests
+        run: |
+          # Wait for service to be ready
+          sleep 30
+
+          # Test health endpoint
+          curl -f https://gateway-list.example.com/health || exit 1
+
+          # Test API endpoint
+          curl -f -X POST https://gateway-list.example.com/v3/gateway \
+            -H "Content-Type: application/json" \
+            -d '{"site":"site1"}' || exit 1
+
+          echo "Smoke tests passed"

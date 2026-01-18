@@ -1,0 +1,186 @@
+# Default values for gateway-list-service
+
+# Image configuration
+image:
+  repository: your-registry/gateway-list-service
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# API Server Configuration
+api:
+  enabled: true
+  replicaCount: 3
+
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+    annotations: {}
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  # Probes
+  livenessProbe:
+    httpGet:
+      path: /live
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 2
+
+  startupProbe:
+    httpGet:
+      path: /live
+      port: 3000
+    initialDelaySeconds: 0
+    periodSeconds: 2
+    timeoutSeconds: 1
+    failureThreshold: 30
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  podAnnotations: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+
+# Worker Configuration
+worker:
+  enabled: true
+
+  # CronJob schedule (every 1 minute)
+  schedule: "*/1 * * * *"
+
+  # Prevent concurrent runs
+  concurrencyPolicy: Forbid
+
+  # Keep last 3 successful and 1 failed job
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+
+  # Job deadline (5 minutes)
+  activeDeadlineSeconds: 300
+
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  podAnnotations: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+
+# Application Configuration
+config:
+  # Node environment
+  nodeEnv: production
+
+  # Redis Configuration
+  redis:
+    host: redis-master
+    port: 6379
+    password: ""
+    db: 0
+
+  # Cache Configuration
+  cache:
+    primaryTtl: 30
+    staleTtl: 3600
+
+  # Manager API Configuration
+  managerApi:
+    url: http://kob-payment-gateway:4000
+    token: "your-secret-token"  # Override this in secrets
+
+  # Worker Configuration
+  workerConfig:
+    intervalMs: 15000
+    timeoutMs: 10000
+
+  # Sites to monitor (comma-separated)
+  sites: "site1,site2,site3"
+
+  # Logging
+  logLevel: info
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "1000"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: gateway-list.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: gateway-list-tls
+      hosts:
+        - gateway-list.example.com
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2

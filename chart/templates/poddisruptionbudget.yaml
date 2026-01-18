@@ -1,0 +1,14 @@
+{{- if and .Values.api.enabled .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "gateway-list-service.fullname" . }}-api
+  labels:
+    {{- include "gateway-list-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "gateway-list-service.api.selectorLabels" . | nindent 6 }}
+{{- end }}

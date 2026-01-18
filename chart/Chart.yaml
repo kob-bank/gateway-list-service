@@ -1,0 +1,14 @@
+apiVersion: v2
+name: gateway-list-service
+description: High-performance gateway list microservice using Bun + Hono
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - gateway
+  - payment
+  - microservice
+  - bun
+  - hono
+maintainers:
+  - name: KOB Bank DevOps Team

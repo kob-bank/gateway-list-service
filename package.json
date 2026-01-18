@@ -1,0 +1,29 @@
+{
+  "name": "gateway-list-service",
+  "version": "1.0.0",
+  "description": "High-performance gateway list microservice using Bun + Hono",
+  "type": "module",
+  "scripts": {
+    "api": "bun run src/api.ts",
+    "worker": "bun run src/worker.ts",
+    "dev:api": "bun --watch src/api.ts",
+    "dev:worker": "bun --watch src/worker.ts",
+    "test": "bun test",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "dependencies": {
+    "hono": "^3.12.0",
+    "ioredis": "^5.3.2",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "bun-types": "latest",
+    "eslint": "^8.56.0",
+    "prettier": "^3.1.1"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}

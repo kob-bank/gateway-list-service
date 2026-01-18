@@ -1,0 +1,80 @@
+{{- if .Values.worker.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "gateway-list-service.fullname" . }}-worker
+  labels:
+    {{- include "gateway-list-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  schedule: {{ .Values.worker.schedule | quote }}
+  concurrencyPolicy: {{ .Values.worker.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.worker.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.worker.failedJobsHistoryLimit }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "gateway-list-service.worker.selectorLabels" . | nindent 8 }}
+    spec:
+      activeDeadlineSeconds: {{ .Values.worker.activeDeadlineSeconds }}
+      template:
+        metadata:
+          annotations:
+            checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+            {{- with .Values.worker.podAnnotations }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          labels:
+            {{- include "gateway-list-service.worker.selectorLabels" . | nindent 12 }}
+        spec:
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccountName: {{ include "gateway-list-service.serviceAccountName" . }}
+          securityContext:
+            {{- toYaml .Values.worker.podSecurityContext | nindent 12 }}
+          restartPolicy: OnFailure
+          containers:
+            - name: worker
+              securityContext:
+                {{- toYaml .Values.worker.securityContext | nindent 16 }}
+              image: {{ include "gateway-list-service.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: ["bun", "run", "src/worker.ts"]
+              envFrom:
+                - configMapRef:
+                    name: {{ include "gateway-list-service.fullname" . }}
+              env:
+                - name: REDIS_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "gateway-list-service.fullname" . }}-secret
+                      key: redis-password
+                      optional: true
+                - name: INTERNAL_API_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "gateway-list-service.fullname" . }}-secret
+                      key: internal-api-token
+              resources:
+                {{- toYaml .Values.worker.resources | nindent 16 }}
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}
+          {{- with .Values.worker.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.worker.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.worker.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}
