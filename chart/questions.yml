@@ -37,10 +37,10 @@ questions:
     type: string
 
   - variable: SITES
-    label: "Sites to Monitor"
-    description: "Comma-separated list of sites (e.g., site1,site2,site3)"
+    label: "Sites to Monitor (Optional)"
+    description: "Leave empty to auto-discover all sites from manager API, or specify comma-separated list (e.g., site1,site2,site3)"
     type: string
-    default: "site1,site2,site3"
+    default: ""
 
   - variable: HOST
     label: "Ingress Hostname"

@@ -150,8 +150,8 @@ config:
     intervalMs: 15000
     timeoutMs: 10000
 
-  # Sites to monitor (comma-separated)
-  sites: "site1,site2,site3"
+  # Sites to monitor (optional - auto-discovered from manager API if empty)
+  sites: ""
 
   # Logging
   logLevel: info

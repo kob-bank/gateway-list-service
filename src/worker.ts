@@ -26,8 +26,27 @@ class GatewayListWorker {
    */
   async run(): Promise<void> {
     console.log('[Worker] Starting gateway list worker');
-    console.log(`[Worker] Sites: ${config.sites.join(', ')}`);
     console.log(`[Worker] Interval: ${config.worker.intervalMs}ms`);
+
+    // Fetch sites from manager API
+    let sites: string[];
+    try {
+      console.log('[Worker] Fetching sites from manager API...');
+      sites = await this.managerApi.fetchSites();
+
+      if (sites.length === 0) {
+        console.warn('[Worker] No sites found, worker will exit');
+        await this.shutdown();
+        return;
+      }
+
+      console.log(`[Worker] Found ${sites.length} sites: ${sites.join(', ')}`);
+    } catch (error) {
+      console.error('[Worker] Failed to fetch sites from manager API:', error);
+      console.error('[Worker] Worker will exit');
+      await this.shutdown();
+      throw error;
+    }
 
     // Run for approximately 60 seconds (4 iterations at 15s each)
     const maxDuration = 60000; // 1 minute
@@ -37,7 +56,7 @@ class GatewayListWorker {
       const iterationStart = Date.now();
 
       try {
-        await this.fetchAndUpdate();
+        await this.fetchAndUpdate(sites);
       } catch (error) {
         console.error('[Worker] Error in fetch cycle:', error);
       }
@@ -58,13 +77,13 @@ class GatewayListWorker {
   /**
    * Fetch data for all sites and update cache
    */
-  private async fetchAndUpdate(): Promise<void> {
+  private async fetchAndUpdate(sites: string[]): Promise<void> {
     console.log('[Worker] Starting fetch cycle');
     const cycleStart = Date.now();
 
     // Process all sites in parallel
     await Promise.all(
-      config.sites.map((site) => this.processSite(site))
+      sites.map((site) => this.processSite(site))
     );
 
     const cycleDuration = Date.now() - cycleStart;

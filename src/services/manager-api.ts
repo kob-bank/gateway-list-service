@@ -73,6 +73,49 @@ export class ManagerApiService {
   }
 
   /**
+   * Fetch all unique sites from manager API
+   */
+  async fetchSites(): Promise<string[]> {
+    const url = `${this.baseUrl}/internal/gateway/sites`;
+
+    console.log('[ManagerAPI] Fetching all sites');
+    const startTime = Date.now();
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'X-Internal-Token': this.token,
+        },
+        signal: AbortSignal.timeout(config.worker.timeoutMs),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Manager API returned ${response.status}: ${errorText}`
+        );
+      }
+
+      const data: { success: boolean; data: { sites: string[]; count: number } } =
+        await response.json();
+      const duration = Date.now() - startTime;
+
+      console.log(`[ManagerAPI] Fetched ${data.data.count} sites in ${duration}ms`);
+      console.log(`[ManagerAPI] Sites: ${data.data.sites.join(', ')}`);
+
+      return data.data.sites;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      console.error(
+        `[ManagerAPI] Error fetching sites after ${duration}ms:`,
+        error
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Health check - verify manager API is reachable
    */
   async healthCheck(): Promise<boolean> {
