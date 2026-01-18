@@ -161,18 +161,12 @@ ingress:
   enabled: true
   className: nginx
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/rate-limit: "1000"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
     - host: gateway-list.example.com
       paths:
         - path: /
           pathType: Prefix
-  tls:
-    - secretName: gateway-list-tls
-      hosts:
-        - gateway-list.example.com
 
 # Service Account
 serviceAccount:
