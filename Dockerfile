@@ -23,8 +23,8 @@ COPY --from=build /app/package.json ./
 COPY --from=build /app/tsconfig.json ./
 
 # Create non-root user
-RUN addgroup --system --gid 1001 bunuser && \
-    adduser --system --uid 1001 bunuser && \
+RUN groupadd -r bunuser -g 1001 && \
+    useradd -r -u 1001 -g bunuser bunuser && \
     chown -R bunuser:bunuser /app
 
 USER bunuser
