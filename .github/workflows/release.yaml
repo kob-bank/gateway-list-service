@@ -50,7 +50,7 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           file_pattern: 'package.json'
-          commit_message: "${{ steps.tag_version.outputs.new_tag }}"
+          commit_message: "${{ steps.new_version.outputs.new_tag }}"
 
       - name: Bump version and push tag
         id: tag_version
