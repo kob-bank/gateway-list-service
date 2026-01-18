@@ -1,0 +1,55 @@
+labels:
+  io.cattle.role: project
+  io.rancher.app_min_version: 9.0.2
+questions:
+  - variable: NODE_ENV
+    label: "Node Environment"
+    description: "Node environment (production/staging/development)"
+    type: string
+    default: "production"
+
+  - variable: REDIS_HOST
+    label: "Redis Host"
+    description: "Redis server hostname"
+    type: string
+    default: "redis-master"
+
+  - variable: REDIS_PORT
+    label: "Redis Port"
+    description: "Redis server port"
+    type: string
+    default: "6379"
+
+  - variable: REDIS_PASSWORD
+    label: "Redis Password"
+    description: "Redis authentication password"
+    type: string
+
+  - variable: MANAGER_API_URL
+    label: "Manager API URL"
+    description: "KOB Payment Gateway API endpoint"
+    type: string
+    default: "http://kob-payment-gateway:4000"
+
+  - variable: MANAGER_API_TOKEN
+    label: "Manager API Token"
+    description: "Internal API authentication token"
+    type: string
+
+  - variable: SITES
+    label: "Sites to Monitor"
+    description: "Comma-separated list of sites (e.g., site1,site2,site3)"
+    type: string
+    default: "site1,site2,site3"
+
+  - variable: HOST
+    label: "Ingress Hostname"
+    description: "Domain for the gateway list service"
+    type: string
+    default: "gateway-list.example.com"
+
+  - variable: LOG_LEVEL
+    label: "Log Level"
+    description: "Application log level (error/warn/info/debug)"
+    type: string
+    default: "info"
