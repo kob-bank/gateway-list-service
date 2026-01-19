@@ -1,6 +1,6 @@
 {
   "name": "gateway-list-service",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "High-performance gateway list microservice using Bun + Hono",
   "type": "module",
   "scripts": {
