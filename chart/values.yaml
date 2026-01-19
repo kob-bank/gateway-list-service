@@ -3,7 +3,7 @@
 # Image configuration
 image:
   repository: registry.digitalocean.com/kob-payment/gateway-list-service
-  tag: "v1.0.8"  # Updated by CI/CD on release
+  tag: "v1.0.12"  # Updated by CI/CD on release
   pullPolicy: IfNotPresent
 
 imagePullSecrets:
