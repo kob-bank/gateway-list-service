@@ -37,6 +37,7 @@ export interface FilteredGateway {
     start: string;
     end: string;
   };
+  balance?: number; // Current balance from balance service
 }
 
 /**
@@ -63,7 +64,7 @@ export class FilterService {
 
     const filtered = gateways
       .filter((gateway) => this.applyAllFilters(gateway, balances, errors))
-      .map((gateway) => this.mapToResponse(gateway));
+      .map((gateway) => this.mapToResponse(gateway, balances));
 
     const duration = Date.now() - startTime;
     console.log(`[Filter] Filtered to ${filtered.length} gateways in ${duration}ms`);
@@ -222,8 +223,12 @@ export class FilterService {
    * - Excludes MongoDB metadata (_id, __v, createdAt, updatedAt)
    * - Excludes internal config (backupSite)
    * - Includes option.fee and option.feeEstimationTable for BO calculations
+   * - Includes balance from balance service
    */
-  private mapToResponse(gateway: Gateway): FilteredGateway {
+  private mapToResponse(
+    gateway: Gateway,
+    balances: Record<string, number>
+  ): FilteredGateway {
     return {
       gatewayId: gateway.gatewayId,
       provider: gateway.provider,
@@ -236,6 +241,7 @@ export class FilterService {
       minLimit: gateway.minLimit,
       maxLimit: gateway.maxLimit,
       timeRange: gateway.timeRange,
+      balance: balances[gateway.gatewayId] || 0, // Current balance
     };
   }
 }
