@@ -4,6 +4,13 @@ import { config } from '../config';
 export class CacheService {
   private redis: Redis;
 
+  /**
+   * Expose Redis client for direct access (e.g., KEYS command in /ready endpoint)
+   */
+  get client(): Redis {
+    return this.redis;
+  }
+
   constructor() {
     this.redis = new Redis({
       host: config.redis.host,
