@@ -2,7 +2,7 @@ labels:
   io.cattle.role: project
   io.rancher.app_min_version: 9.0.2
 questions:
-  - variable: NODE_ENV
+  - variable: config.nodeEnv
     label: "Node Environment"
     description: "Node environment (production/staging/development)"
     type: string
@@ -25,7 +25,7 @@ questions:
     description: "Redis authentication password"
     type: string
 
-  - variable: MANAGER_API_URL
+  - variable: config.managerApi.url
     label: "Manager API URL"
     description: "KOB Payment Gateway API endpoint"
     type: string
@@ -36,19 +36,19 @@ questions:
     description: "Internal API authentication token"
     type: string
 
-  - variable: SITES
+  - variable: config.sites
     label: "Sites to Monitor (Optional)"
     description: "Leave empty to auto-discover all sites from manager API, or specify comma-separated list (e.g., site1,site2,site3)"
     type: string
     default: ""
 
-  - variable: HOST
+  - variable: ingress.hosts[0].host
     label: "Ingress Hostname"
     description: "Domain for the gateway list service"
     type: string
     default: "gateway-list.example.com"
 
-  - variable: LOG_LEVEL
+  - variable: config.logLevel
     label: "Log Level"
     description: "Application log level (error/warn/info/debug)"
     type: string
