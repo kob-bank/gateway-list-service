@@ -4,9 +4,15 @@ export interface Gateway {
   gatewayId: string;
   provider: string;
   status: string;
-  timeRange: {
-    start: string;
-    end: string;
+  timeRange?: {
+    deposit?: {
+      openingTime: string;
+      closingTime: string;
+    };
+    withdraw?: {
+      openingTime: string;
+      closingTime: string;
+    };
   };
   minLimit: number;
   maxLimit: number;
@@ -133,26 +139,32 @@ export class FilterService {
 
   /**
    * Filter 2: Current time must be within gateway's time range
+   * Checks deposit operating hours (openingTime - closingTime)
    */
   private checkTimeRange(gateway: Gateway): boolean {
-    if (!gateway.timeRange || !gateway.timeRange.start || !gateway.timeRange.end) {
+    if (!gateway.timeRange || !gateway.timeRange.deposit) {
+      return true; // No time restriction
+    }
+
+    const { openingTime, closingTime } = gateway.timeRange.deposit;
+    if (!openingTime || !closingTime) {
       return true; // No time restriction
     }
 
     const now = new Date();
     const currentTime = now.getHours() * 60 + now.getMinutes();
 
-    const [startHour, startMin] = gateway.timeRange.start.split(':').map(Number);
-    const [endHour, endMin] = gateway.timeRange.end.split(':').map(Number);
+    const [openHour, openMin] = openingTime.split(':').map(Number);
+    const [closeHour, closeMin] = closingTime.split(':').map(Number);
 
-    const startTime = startHour * 60 + startMin;
-    const endTime = endHour * 60 + endMin;
+    const startTime = openHour * 60 + openMin;
+    const endTime = closeHour * 60 + closeMin;
 
     const isValid = currentTime >= startTime && currentTime <= endTime;
 
     if (!isValid) {
       console.debug(
-        `[Filter] Gateway ${gateway.gatewayId} filtered out by time range: ${gateway.timeRange.start}-${gateway.timeRange.end}`
+        `[Filter] Gateway ${gateway.gatewayId} filtered out by time range: ${openingTime}-${closingTime}`
       );
     }
 
