@@ -6,7 +6,8 @@ image:
   tag: "latest"
   pullPolicy: IfNotPresent
 
-imagePullSecrets: []
+imagePullSecrets:
+  - name: kob-payment-registry
 nameOverride: ""
 fullnameOverride: ""
 
