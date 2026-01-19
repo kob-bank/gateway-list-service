@@ -261,6 +261,7 @@ describe('FilterService', () => {
         status: 'active',
         minLimit: 100,
         maxLimit: 50000,
+        balance: 1000, // Should include balance from balances map
       });
       // Security: extraField should NOT be included (no spread operator)
       expect(result[0]).not.toHaveProperty('extraField');
@@ -314,6 +315,7 @@ describe('FilterService', () => {
         status: 'active',
         minLimit: 100,
         maxLimit: 50000,
+        balance: 1000, // Should include balance
       });
       expect(result[0].option).toBeDefined();
       expect(result[0].option?.fee).toBeDefined();
@@ -328,6 +330,41 @@ describe('FilterService', () => {
       expect(result[0]).not.toHaveProperty('createdAt');
       expect(result[0]).not.toHaveProperty('updatedAt');
       expect(result[0]).not.toHaveProperty('backupSite');
+    });
+
+    it('should include balance field from balances map', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [
+          {
+            gatewayId: 'gw-with-balance',
+            provider: 'provider-a',
+            status: 'active',
+            minLimit: 100,
+            maxLimit: 50000,
+            site: 'testsite',
+            name: 'Test Gateway With Balance',
+          },
+          {
+            gatewayId: 'gw-without-balance',
+            provider: 'provider-b',
+            status: 'active',
+            minLimit: 100,
+            maxLimit: 50000,
+            site: 'testsite',
+            name: 'Test Gateway Without Balance',
+          },
+        ],
+        balances: { 'gw-with-balance': 5000 }, // Only one gateway has balance
+        errors: {},
+        providers: [],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+
+      // Only gw-with-balance should pass (has balance > minLimit)
+      expect(result).toHaveLength(1);
+      expect(result[0].gatewayId).toBe('gw-with-balance');
+      expect(result[0].balance).toBe(5000);
     });
   });
 });
