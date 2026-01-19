@@ -131,8 +131,8 @@ config:
 
   # Redis Configuration
   redis:
-    host: redis-master
-    port: 6379
+    host: redis-cache-deployment.default  # Redis in default namespace (FQDN required for cross-namespace)
+    port: 6378                            # Custom Redis port
     password: ""
     db: 0
 

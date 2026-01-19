@@ -8,17 +8,17 @@ questions:
     type: string
     default: "production"
 
-  - variable: REDIS_HOST
+  - variable: config.redis.host
     label: "Redis Host"
-    description: "Redis server hostname"
+    description: "Redis server hostname (use FQDN for cross-namespace: service.namespace)"
     type: string
-    default: "redis-master"
+    default: "redis-cache-deployment.default"
 
-  - variable: REDIS_PORT
+  - variable: config.redis.port
     label: "Redis Port"
     description: "Redis server port"
     type: string
-    default: "6379"
+    default: "6378"
 
   - variable: REDIS_PASSWORD
     label: "Redis Password"
