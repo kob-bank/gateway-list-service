@@ -121,7 +121,7 @@ export class FilterService {
    * Filter 2: Current time must be within gateway's time range
    */
   private checkTimeRange(gateway: Gateway): boolean {
-    if (!gateway.timeRange) {
+    if (!gateway.timeRange || !gateway.timeRange.start || !gateway.timeRange.end) {
       return true; // No time restriction
     }
 
