@@ -7,7 +7,7 @@ image:
   pullPolicy: IfNotPresent
 
 imagePullSecrets:
-  - name: kob-payment-registry
+  - name: kob-payment
 nameOverride: ""
 fullnameOverride: ""
 
