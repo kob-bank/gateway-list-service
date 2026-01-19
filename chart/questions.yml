@@ -20,21 +20,51 @@ questions:
     type: string
     default: "6378"
 
-  - variable: REDIS_PASSWORD
+  - variable: config.redis.db
+    label: "Redis Database"
+    description: "Redis database number"
+    type: string
+    default: "0"
+
+  - variable: config.redis.password
     label: "Redis Password"
     description: "Redis authentication password"
     type: string
+
+  - variable: config.cache.primaryTtl
+    label: "Primary Cache TTL (seconds)"
+    description: "Primary cache time-to-live in seconds"
+    type: string
+    default: "30"
+
+  - variable: config.cache.staleTtl
+    label: "Stale Cache TTL (seconds)"
+    description: "Stale cache fallback time-to-live in seconds"
+    type: string
+    default: "3600"
 
   - variable: config.managerApi.url
     label: "Manager API URL"
     description: "KOB Payment Gateway API endpoint"
     type: string
-    default: "http://kob-payment-gateway:4000"
+    default: "http://kob-payment-gateway-production:80"
 
-  - variable: MANAGER_API_TOKEN
+  - variable: config.managerApi.token
     label: "Manager API Token"
     description: "Internal API authentication token"
     type: string
+
+  - variable: config.workerConfig.intervalMs
+    label: "Worker Interval (milliseconds)"
+    description: "How often worker fetches data from manager API"
+    type: string
+    default: "15000"
+
+  - variable: config.workerConfig.timeoutMs
+    label: "Worker Timeout (milliseconds)"
+    description: "Timeout for manager API requests"
+    type: string
+    default: "10000"
 
   - variable: config.sites
     label: "Sites to Monitor (Optional)"
@@ -44,9 +74,9 @@ questions:
 
   - variable: ingress.hosts[0].host
     label: "Ingress Hostname"
-    description: "Domain for the gateway list service"
+    description: "Production domain for the gateway list service"
     type: string
-    default: "gateway-list.example.com"
+    default: "gl.sapan.link"
 
   - variable: config.logLevel
     label: "Log Level"
