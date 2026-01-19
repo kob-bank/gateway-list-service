@@ -98,7 +98,13 @@ export class FilterService {
    * Filter 1: Status must be 'active' or 'enabled'
    */
   private checkStatus(gateway: Gateway): boolean {
-    const validStatuses = ['active', 'enabled', 'online'];
+    // Handle boolean true as valid (backend sends boolean status)
+    if (gateway.status === true) {
+      return true;
+    }
+
+    // Handle string statuses
+    const validStatuses = ['active', 'enabled', 'online', 'true'];
     const statusStr = String(gateway.status ?? '').toLowerCase();
     const isValid = validStatuses.includes(statusStr);
 
