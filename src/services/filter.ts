@@ -21,9 +21,22 @@ export interface FilterRequest {
 export interface FilteredGateway {
   gatewayId: string;
   provider: string;
+  site: string;
+  name: string;
+  status: string | boolean;
+  paymentMethods?: string[];
+  metaConfig?: any;
+  option?: {
+    fee?: any;
+    feeEstimationTable?: Record<string, any>;
+    [key: string]: any;
+  };
   minLimit: number;
   maxLimit: number;
-  [key: string]: any;
+  timeRange?: {
+    start: string;
+    end: string;
+  };
 }
 
 /**
@@ -204,15 +217,25 @@ export class FilterService {
 
   /**
    * Map gateway to response format
+   * SECURITY: Explicitly whitelist safe fields only
+   * - Excludes providerConfig (contains credentials)
+   * - Excludes MongoDB metadata (_id, __v, createdAt, updatedAt)
+   * - Excludes internal config (backupSite)
+   * - Includes option.fee and option.feeEstimationTable for BO calculations
    */
   private mapToResponse(gateway: Gateway): FilteredGateway {
     return {
       gatewayId: gateway.gatewayId,
       provider: gateway.provider,
+      site: gateway.site,
+      name: gateway.name,
+      status: gateway.status,
+      paymentMethods: gateway.paymentMethods,
+      metaConfig: gateway.metaConfig,
+      option: gateway.option, // Contains fee and feeEstimationTable
       minLimit: gateway.minLimit,
       maxLimit: gateway.maxLimit,
-      // Include any other fields from original gateway
-      ...gateway,
+      timeRange: gateway.timeRange,
     };
   }
 }
