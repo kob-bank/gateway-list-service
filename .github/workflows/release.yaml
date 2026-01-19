@@ -89,6 +89,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Update Helm chart values
+        run: |
+          sed -i "s|tag: \".*\"|tag: \"${{ steps.tag_version.outputs.new_tag }}\"|" chart/values.yaml
+          echo "Updated chart/values.yaml image.tag to ${{ steps.tag_version.outputs.new_tag }}"
+          cat chart/values.yaml | grep -A 2 "image:"
+
       - name: Push Helm chart
         uses: bsord/helm-push@v4
         with:
