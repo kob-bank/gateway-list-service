@@ -164,7 +164,7 @@ ingress:
   annotations:
     nginx.ingress.kubernetes.io/rate-limit: "1000"
   hosts:
-    - host: gateway-list.example.com
+    - host: gl.sapan.link
       paths:
         - path: /
           pathType: Prefix
