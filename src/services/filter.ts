@@ -99,7 +99,8 @@ export class FilterService {
    */
   private checkStatus(gateway: Gateway): boolean {
     const validStatuses = ['active', 'enabled', 'online'];
-    const isValid = validStatuses.includes(gateway.status?.toLowerCase());
+    const statusStr = String(gateway.status ?? '').toLowerCase();
+    const isValid = validStatuses.includes(statusStr);
 
     if (!isValid) {
       console.debug(
