@@ -343,30 +343,31 @@ export class FilterService {
       provider?.limit?.withdraw?.max ??
       1000000;
 
-    // Merge service time: gateway metaConfig ?? gateway.serviceTime ?? provider defaults
+    // Merge service time: gateway metaConfig || gateway.serviceTime || provider defaults
+    // Use || instead of ?? to treat empty string as falsy
     const serviceTime = {
       deposit: {
         openingTime:
-          gateway.metaConfig?.operateTime?.deposit?.openingTime ??
-          gateway.serviceTime?.deposit?.openingTime ??
-          provider?.operateTime?.deposit?.openingTime ??
+          gateway.metaConfig?.operateTime?.deposit?.openingTime ||
+          gateway.serviceTime?.deposit?.openingTime ||
+          provider?.operateTime?.deposit?.openingTime ||
           '00:00',
         closingTime:
-          gateway.metaConfig?.operateTime?.deposit?.closingTime ??
-          gateway.serviceTime?.deposit?.closingTime ??
-          provider?.operateTime?.deposit?.closingTime ??
+          gateway.metaConfig?.operateTime?.deposit?.closingTime ||
+          gateway.serviceTime?.deposit?.closingTime ||
+          provider?.operateTime?.deposit?.closingTime ||
           '23:59',
       },
       withdraw: {
         openingTime:
-          gateway.metaConfig?.operateTime?.withdraw?.openingTime ??
-          gateway.serviceTime?.withdraw?.openingTime ??
-          provider?.operateTime?.withdraw?.openingTime ??
+          gateway.metaConfig?.operateTime?.withdraw?.openingTime ||
+          gateway.serviceTime?.withdraw?.openingTime ||
+          provider?.operateTime?.withdraw?.openingTime ||
           '00:00',
         closingTime:
-          gateway.metaConfig?.operateTime?.withdraw?.closingTime ??
-          gateway.serviceTime?.withdraw?.closingTime ??
-          provider?.operateTime?.withdraw?.closingTime ??
+          gateway.metaConfig?.operateTime?.withdraw?.closingTime ||
+          gateway.serviceTime?.withdraw?.closingTime ||
+          provider?.operateTime?.withdraw?.closingTime ||
           '23:59',
       },
     };
