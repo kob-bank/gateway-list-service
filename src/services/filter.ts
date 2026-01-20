@@ -315,9 +315,9 @@ export class FilterService {
       group: gateway.group,
       description: gateway.description,
 
-      // Balance fields (V2 names)
-      currentBalance: gateway.currentBalance,
-      totalBalance: gateway.totalBalance,
+      // Balance fields (V2 names) - use balance from balances map
+      currentBalance: balances[gateway.gatewayId] ?? gateway.currentBalance ?? 0,
+      totalBalance: balances[gateway.gatewayId] ?? gateway.totalBalance ?? 0,
 
       // Service time
       serviceTime: gateway.serviceTime,
