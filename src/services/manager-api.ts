@@ -5,11 +5,66 @@ export interface BatchDataRequest {
   include: ('gateways' | 'balances' | 'errors' | 'providers')[];
 }
 
+/**
+ * Raw gateway data from kob-payment-gateway batch-data endpoint
+ * This is the raw MongoDB document with metaConfig
+ */
+export interface RawGateway {
+  gatewayId: string;
+  provider: string;
+  name: string;
+  site: string;
+  status: boolean;
+  groupId?: string | null;
+  paymentMethods?: string[];
+  metaConfig?: {
+    limit?: {
+      deposit?: { min?: number; max?: number };
+      withdraw?: { min?: number; max?: number };
+    };
+    operateTime?: {
+      deposit?: { openingTime?: string; closingTime?: string };
+      withdraw?: { openingTime?: string; closingTime?: string };
+    };
+    balanceLimit?: number | null;
+  };
+  [key: string]: any;
+}
+
+/**
+ * Provider config from kob-payment-gateway batch-data endpoint
+ * Contains default values for limit, operateTime, and option (fee)
+ */
+export interface ProviderConfig {
+  provider: string;
+  limit?: {
+    deposit?: { min?: number; max?: number };
+    withdraw?: { min?: number; max?: number };
+  };
+  operateTime?: {
+    deposit?: { openingTime?: string; closingTime?: string };
+    withdraw?: { openingTime?: string; closingTime?: string };
+  };
+  option?: {
+    fee?: {
+      deposit?: { type?: string; value?: number; min?: number };
+      withdraw?: { type?: string; value?: number; min?: number };
+      settlement?: {
+        normal?: { type?: string; value?: number; min?: number };
+        usdt?: { type?: string; value?: number; min?: number };
+      };
+    };
+    function?: string[];
+    description?: string;
+    [key: string]: any;
+  };
+}
+
 export interface BatchDataResponse {
-  gateways?: any[];
+  gateways?: RawGateway[];
   balances?: Record<string, number>;
   errors?: Record<string, number>;
-  providers?: any[];
+  providers?: ProviderConfig[];
 }
 
 export class ManagerApiService {
