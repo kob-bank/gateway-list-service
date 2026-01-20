@@ -4,7 +4,7 @@ export interface Gateway {
   gatewayId: string;
   provider: string;
   status: string;
-  timeRange?: {
+  serviceTime?: {
     deposit?: {
       openingTime: string;
       closingTime: string;
@@ -39,9 +39,15 @@ export interface FilteredGateway {
   };
   minLimit: number;
   maxLimit: number;
-  timeRange?: {
-    start: string;
-    end: string;
+  serviceTime?: {
+    deposit?: {
+      openingTime: string;
+      closingTime: string;
+    };
+    withdraw?: {
+      openingTime: string;
+      closingTime: string;
+    };
   };
   balance?: number; // Current balance from balance service
 }
@@ -142,11 +148,11 @@ export class FilterService {
    * Checks deposit operating hours (openingTime - closingTime)
    */
   private checkTimeRange(gateway: Gateway): boolean {
-    if (!gateway.timeRange || !gateway.timeRange.deposit) {
+    if (!gateway.serviceTime || !gateway.serviceTime.deposit) {
       return true; // No time restriction
     }
 
-    const { openingTime, closingTime } = gateway.timeRange.deposit;
+    const { openingTime, closingTime } = gateway.serviceTime.deposit;
     if (!openingTime || !closingTime) {
       return true; // No time restriction
     }
@@ -252,7 +258,7 @@ export class FilterService {
       option: gateway.option, // Contains fee and feeEstimationTable
       minLimit: gateway.minLimit,
       maxLimit: gateway.maxLimit,
-      timeRange: gateway.timeRange,
+      serviceTime: gateway.serviceTime,
       balance: balances[gateway.gatewayId] || 0, // Current balance
     };
   }
