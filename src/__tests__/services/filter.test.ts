@@ -1,28 +1,47 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { FilterService } from '../../services/filter';
-import type { BatchDataResponse } from '../../services/manager-api';
+import type { BatchDataResponse, ProviderConfig } from '../../services/manager-api';
 
-// Helper to create a valid V2 gateway object
+// Helper to create a raw gateway object (as returned from batch-data)
 const createGateway = (overrides: Partial<any> = {}) => ({
   gatewayId: 'gw-001',
   provider: 'provider-a',
   name: 'Test Gateway',
   site: 'testsite',
   status: true,
-  min: 100,
-  max: 50000,
+  groupId: null,
+  paymentMethods: ['QR'],
+  metaConfig: {
+    limit: {
+      deposit: { min: 100, max: 50000 },
+      withdraw: { min: 100, max: 50000 },
+    },
+    operateTime: {
+      deposit: { openingTime: '00:00', closingTime: '23:59' },
+      withdraw: { openingTime: '00:00', closingTime: '23:59' },
+    },
+    balanceLimit: null,
+  },
+  ...overrides,
+});
+
+// Helper to create a provider config
+const createProvider = (overrides: Partial<ProviderConfig> = {}): ProviderConfig => ({
+  provider: 'provider-a',
   limit: {
     deposit: { min: 100, max: 50000 },
     withdraw: { min: 100, max: 50000 },
   },
-  balanceLimit: null,
-  type: 'individual' as const,
-  isGroup: false,
-  isInGroup: false,
-  group: null,
-  description: '',
-  currentBalance: 0,
-  totalBalance: 0,
+  operateTime: {
+    deposit: { openingTime: '00:00', closingTime: '23:59' },
+    withdraw: { openingTime: '00:00', closingTime: '23:59' },
+  },
+  option: {
+    fee: {
+      deposit: { type: 'percent', value: 1.5, min: 0 },
+      withdraw: { type: 'percent', value: 0.5, min: 0 },
+    },
+  },
   ...overrides,
 });
 
@@ -39,7 +58,7 @@ describe('FilterService', () => {
         gateways: [],
         balances: {},
         errors: {},
-        providers: [],
+        providers: [createProvider()],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -51,7 +70,7 @@ describe('FilterService', () => {
         gateways: [createGateway({ status: false })],
         balances: { 'gw-001': 10000 },
         errors: {},
-        providers: [],
+        providers: [createProvider()],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -63,7 +82,7 @@ describe('FilterService', () => {
         gateways: [createGateway({ status: true })],
         balances: { 'gw-001': 10000 },
         errors: {},
-        providers: [],
+        providers: [createProvider()],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -76,7 +95,7 @@ describe('FilterService', () => {
         gateways: [createGateway()],
         balances: { 'gw-001': 10000 },
         errors: { 'provider-a': 5 }, // Error limit reached
-        providers: [],
+        providers: [createProvider()],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -88,7 +107,7 @@ describe('FilterService', () => {
         gateways: [createGateway()],
         balances: { 'gw-001': 10000 },
         errors: { 'provider-a': 4 }, // Below limit
-        providers: [],
+        providers: [createProvider()],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -97,10 +116,10 @@ describe('FilterService', () => {
 
     it('should filter out gateways with insufficient balance', () => {
       const batchData: BatchDataResponse = {
-        gateways: [createGateway({ min: 100 })],
+        gateways: [createGateway()], // min is 100 from metaConfig
         balances: { 'gw-001': 50 }, // Below min
         errors: {},
-        providers: [],
+        providers: [createProvider()],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -109,10 +128,10 @@ describe('FilterService', () => {
 
     it('should include gateways with sufficient balance', () => {
       const batchData: BatchDataResponse = {
-        gateways: [createGateway({ min: 100 })],
+        gateways: [createGateway()], // min is 100 from metaConfig
         balances: { 'gw-001': 1000 }, // Above min
         errors: {},
-        providers: [],
+        providers: [createProvider()],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -132,7 +151,11 @@ describe('FilterService', () => {
           'gw-003': 50, // Insufficient
         },
         errors: {},
-        providers: [],
+        providers: [
+          createProvider({ provider: 'provider-a' }),
+          createProvider({ provider: 'provider-b' }),
+          createProvider({ provider: 'provider-c' }),
+        ],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -154,7 +177,10 @@ describe('FilterService', () => {
           'provider-a': 4, // Below limit
           'provider-b': 5, // At limit (should be filtered)
         },
-        providers: [],
+        providers: [
+          createProvider({ provider: 'provider-a' }),
+          createProvider({ provider: 'provider-b' }),
+        ],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -183,16 +209,12 @@ describe('FilterService', () => {
             name: 'Test Gateway',
             site: 'testsite',
             status: true,
-            min: 100,
-            max: 50000,
-            currentBalance: 0, // Gateway always has 0, balance comes from balances map
-            totalBalance: 0,
             extraField: 'extra-value',
           }),
         ],
         balances: { 'gw-001': 1000 }, // Real balance from balance service
         errors: {},
-        providers: [],
+        providers: [createProvider()],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -220,8 +242,6 @@ describe('FilterService', () => {
             name: 'Test Gateway',
             site: 'testsite',
             status: true,
-            min: 100,
-            max: 50000,
             // Sensitive fields that should be excluded
             providerConfig: {
               secretKey: 'SECRET_KEY',
@@ -233,17 +253,11 @@ describe('FilterService', () => {
             createdAt: '2024-01-01',
             updatedAt: '2024-01-02',
             backupSite: 'backup-site',
-            // Safe fields that should be included
-            option: {
-              fee: { deposit: { type: 'percent', value: 1.5 } },
-              feeEstimationTable: { '100': { deposit: 1.5 } },
-            },
-            paymentMethods: ['deposit', 'withdraw'],
           }),
         ],
         balances: { 'gw-001': 1000 },
         errors: {},
-        providers: [],
+        providers: [createProvider()],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -279,19 +293,18 @@ describe('FilterService', () => {
           createGateway({
             gatewayId: 'gw-with-balance',
             provider: 'provider-a',
-            currentBalance: 0, // Gateway always has 0, real balance comes from balances map
-            totalBalance: 0,
           }),
           createGateway({
             gatewayId: 'gw-without-balance',
             provider: 'provider-b',
-            currentBalance: 0,
-            totalBalance: 0,
           }),
         ],
         balances: { 'gw-with-balance': 5000 }, // Real balance from balance service
         errors: {},
-        providers: [],
+        providers: [
+          createProvider({ provider: 'provider-a' }),
+          createProvider({ provider: 'provider-b' }),
+        ],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -310,42 +323,42 @@ describe('FilterService', () => {
           createGateway({
             gatewayId: 'gw-group',
             provider: 'provider-a',
-            type: 'group',
-            isGroup: true,
-            isInGroup: false,
-            group: { groupId: 'grp-001', groupName: 'Test Group' },
-            description: 'A group gateway',
+            groupId: 'grp-001',
           }),
         ],
         balances: { 'gw-group': 5000 },
         errors: {},
-        providers: [],
+        providers: [createProvider()],
       };
 
       const result = filterService.evaluateFilters(batchData);
       expect(result).toHaveLength(1);
-      expect(result[0].type).toBe('group');
+      expect(result[0].type).toBe('group'); // type derived from groupId
       expect(result[0].isGroup).toBe(true);
-      expect(result[0].isInGroup).toBe(false);
-      expect(result[0].group).toEqual({ groupId: 'grp-001', groupName: 'Test Group' });
-      expect(result[0].description).toBe('A group gateway');
+      expect(result[0].isInGroup).toBe(true);
+      expect(result[0].group).toEqual({ groupId: 'grp-001', groupName: 'grp-001' });
+      expect(result[0].description).toBe('Group provider-a gateway');
     });
 
-    it('should include serviceTime field (V2 format)', () => {
+    it('should include serviceTime field (V2 format) - merged from metaConfig', () => {
       const batchData: BatchDataResponse = {
         gateways: [
           createGateway({
             gatewayId: 'gw-time',
             provider: 'provider-a',
-            serviceTime: {
-              deposit: { openingTime: '08:00', closingTime: '22:00' },
-              withdraw: { openingTime: '09:00', closingTime: '21:00' },
+            metaConfig: {
+              limit: { deposit: { min: 100, max: 50000 }, withdraw: { min: 100, max: 50000 } },
+              operateTime: {
+                deposit: { openingTime: '08:00', closingTime: '22:00' },
+                withdraw: { openingTime: '09:00', closingTime: '21:00' },
+              },
+              balanceLimit: null,
             },
           }),
         ],
         balances: { 'gw-time': 5000 },
         errors: {},
-        providers: [],
+        providers: [createProvider()],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -356,24 +369,28 @@ describe('FilterService', () => {
       });
     });
 
-    it('should include limit structure (V2 format)', () => {
+    it('should include limit structure (V2 format) - merged from metaConfig', () => {
       const batchData: BatchDataResponse = {
         gateways: [
           createGateway({
             gatewayId: 'gw-limit',
             provider: 'provider-a',
-            min: 100,
-            max: 50000,
-            limit: {
-              deposit: { min: 100, max: 50000 },
-              withdraw: { min: 200, max: 30000 },
+            metaConfig: {
+              limit: {
+                deposit: { min: 100, max: 50000 },
+                withdraw: { min: 200, max: 30000 },
+              },
+              operateTime: {
+                deposit: { openingTime: '00:00', closingTime: '23:59' },
+                withdraw: { openingTime: '00:00', closingTime: '23:59' },
+              },
+              balanceLimit: 100000,
             },
-            balanceLimit: 100000,
           }),
         ],
         balances: { 'gw-limit': 5000 },
         errors: {},
-        providers: [],
+        providers: [createProvider()],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -385,6 +402,114 @@ describe('FilterService', () => {
         withdraw: { min: 200, max: 30000 },
       });
       expect(result[0].balanceLimit).toBe(100000);
+    });
+
+    it('should merge gateway metaConfig with provider defaults', () => {
+      // Gateway has no metaConfig.limit.withdraw, should use provider defaults
+      const batchData: BatchDataResponse = {
+        gateways: [
+          createGateway({
+            gatewayId: 'gw-merge',
+            provider: 'provider-a',
+            metaConfig: {
+              limit: {
+                deposit: { min: 50, max: 100000 }, // Gateway specific
+                // withdraw is missing - should use provider defaults
+              },
+              operateTime: {
+                deposit: { openingTime: '00:00', closingTime: '23:59' },
+                withdraw: { openingTime: '00:00', closingTime: '23:59' },
+              },
+              balanceLimit: null,
+            },
+          }),
+        ],
+        balances: { 'gw-merge': 5000 },
+        errors: {},
+        providers: [
+          createProvider({
+            provider: 'provider-a',
+            limit: {
+              deposit: { min: 100, max: 50000 }, // Provider defaults
+              withdraw: { min: 200, max: 50000 }, // Should be used as fallback
+            },
+          }),
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      expect(result).toHaveLength(1);
+      // Gateway's deposit limit (50, 100000)
+      expect(result[0].limit?.deposit).toEqual({ min: 50, max: 100000 });
+      // Provider's withdraw limit as fallback (200, 50000)
+      expect(result[0].limit?.withdraw).toEqual({ min: 200, max: 50000 });
+    });
+
+    it('should generate feeEstimationTable from provider fee config', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [createGateway()],
+        balances: { 'gw-001': 5000 },
+        errors: {},
+        providers: [
+          createProvider({
+            provider: 'provider-a',
+            option: {
+              fee: {
+                deposit: { type: 'percent', value: 1.8, min: 0 },
+                withdraw: { type: 'percent', value: 0.2, min: 0 },
+              },
+            },
+          }),
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      expect(result).toHaveLength(1);
+      expect(result[0].option?.feeEstimationTable).toBeDefined();
+      // Check specific calculations
+      expect(result[0].option?.feeEstimationTable?.['100']).toEqual({
+        deposit: 1.8, // 100 * 1.8% = 1.8
+        withdraw: 0.2, // 100 * 0.2% = 0.2
+      });
+      expect(result[0].option?.feeEstimationTable?.['1000']).toEqual({
+        deposit: 18, // 1000 * 1.8% = 18
+        withdraw: 2, // 1000 * 0.2% = 2
+      });
+    });
+
+    it('should generate description based on groupId', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [
+          createGateway({
+            gatewayId: 'gw-individual',
+            provider: 'provider-a',
+            groupId: null, // Not in a group
+          }),
+          createGateway({
+            gatewayId: 'gw-grouped',
+            provider: 'provider-b',
+            groupId: 'grp-001', // In a group
+          }),
+        ],
+        balances: {
+          'gw-individual': 5000,
+          'gw-grouped': 5000,
+        },
+        errors: {},
+        providers: [
+          createProvider({ provider: 'provider-a' }),
+          createProvider({ provider: 'provider-b' }),
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      expect(result).toHaveLength(2);
+
+      const individual = result.find(g => g.gatewayId === 'gw-individual');
+      const grouped = result.find(g => g.gatewayId === 'gw-grouped');
+
+      expect(individual?.description).toBe('Individual provider-a gateway');
+      expect(grouped?.description).toBe('Group provider-b gateway');
     });
   });
 });

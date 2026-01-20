@@ -1,7 +1,8 @@
-import type { BatchDataResponse } from './manager-api';
+import type { BatchDataResponse, RawGateway, ProviderConfig } from './manager-api';
 
 /**
- * Gateway interface - matches V2 API field names and structure
+ * Gateway interface - for raw gateway data with metaConfig
+ * This is what we receive from batch-data endpoint
  */
 export interface Gateway {
   gatewayId: string;
@@ -9,46 +10,42 @@ export interface Gateway {
   name: string;
   site: string;
   status: boolean;
+  groupId?: string | null;
   paymentMethods?: string[];
 
-  // Limit fields (V2 names)
-  min: number;
-  max: number;
-  limit: {
-    deposit: { min: number; max: number };
-    withdraw: { min: number; max: number };
+  // Raw metaConfig from MongoDB
+  metaConfig?: {
+    limit?: {
+      deposit?: { min?: number; max?: number };
+      withdraw?: { min?: number; max?: number };
+    };
+    operateTime?: {
+      deposit?: { openingTime?: string; closingTime?: string };
+      withdraw?: { openingTime?: string; closingTime?: string };
+    };
+    balanceLimit?: number | null;
   };
-  balanceLimit: number | null;
 
-  // Group-related fields
-  type: 'individual' | 'group';
-  isGroup: boolean;
-  isInGroup: boolean;
-  group: { groupId: string; groupName: string } | null;
-  description: string;
-
-  // Balance fields (V2 names)
-  currentBalance: number;
-  totalBalance: number;
-
-  // Service time
+  // Legacy V2 fields (for backwards compatibility during transition)
+  min?: number;
+  max?: number;
+  limit?: {
+    deposit?: { min?: number; max?: number };
+    withdraw?: { min?: number; max?: number };
+  };
+  balanceLimit?: number | null;
+  type?: 'individual' | 'group';
+  isGroup?: boolean;
+  isInGroup?: boolean;
+  group?: { groupId: string; groupName: string } | null;
+  description?: string;
+  currentBalance?: number;
+  totalBalance?: number;
   serviceTime?: {
-    deposit?: {
-      openingTime: string;
-      closingTime: string;
-    };
-    withdraw?: {
-      openingTime: string;
-      closingTime: string;
-    };
+    deposit?: { openingTime?: string; closingTime?: string };
+    withdraw?: { openingTime?: string; closingTime?: string };
   };
-
-  // Option with fee info
-  option?: {
-    fee?: any;
-    feeEstimationTable?: Record<string, any>;
-    [key: string]: any;
-  };
+  option?: any;
 
   [key: string]: any;
 }
@@ -117,6 +114,9 @@ export class FilterService {
   // Hardcoded error limit (not configurable)
   private readonly ERROR_LIMIT = 5;
 
+  // Cache for fee estimation tables
+  private feeTableCache = new Map<string, Record<string, { withdraw: number; deposit: number }>>();
+
   /**
    * Evaluate all filters and return eligible gateways
    */
@@ -124,16 +124,23 @@ export class FilterService {
     batchData: BatchDataResponse,
     request: FilterRequest = {}
   ): FilteredGateway[] {
-    const { gateways = [], balances = {}, errors = {}, providers = {} } = batchData;
+    const { gateways = [], balances = {}, errors = {}, providers = [] } = batchData;
 
     console.log(`[Filter] Evaluating ${gateways.length} gateways`);
     console.log(`[Filter] Using errorLimit: ${this.ERROR_LIMIT} (hardcoded)`);
+    console.log(`[Filter] Providers available: ${providers.length}`);
 
     const startTime = Date.now();
 
+    // Create provider lookup map for efficient access
+    const providerMap = new Map<string, ProviderConfig>();
+    for (const p of providers) {
+      providerMap.set(p.provider, p);
+    }
+
     const filtered = gateways
-      .filter((gateway) => this.applyAllFilters(gateway, balances, errors))
-      .map((gateway) => this.mapToResponse(gateway, balances));
+      .filter((gateway) => this.applyAllFilters(gateway as Gateway, balances, errors, providerMap))
+      .map((gateway) => this.mapToResponse(gateway as Gateway, balances, providerMap));
 
     const duration = Date.now() - startTime;
     console.log(`[Filter] Filtered to ${filtered.length} gateways in ${duration}ms`);
@@ -147,15 +154,16 @@ export class FilterService {
   private applyAllFilters(
     gateway: Gateway,
     balances: Record<string, number>,
-    errors: Record<string, number>
+    errors: Record<string, number>,
+    providerMap: Map<string, ProviderConfig>
   ): boolean {
     // Filter 1: Status check
     if (!this.checkStatus(gateway)) {
       return false;
     }
 
-    // Filter 2: Time range check
-    if (!this.checkTimeRange(gateway)) {
+    // Filter 2: Time range check (use merged service time)
+    if (!this.checkTimeRange(gateway, providerMap)) {
       return false;
     }
 
@@ -169,8 +177,8 @@ export class FilterService {
       return false;
     }
 
-    // Filter 5: Balance limit check (WITHOUT depositAmount)
-    if (!this.checkBalanceLimit(gateway, balances)) {
+    // Filter 5: Balance limit check (use merged min limit)
+    if (!this.checkBalanceLimit(gateway, balances, providerMap)) {
       return false;
     }
 
@@ -195,13 +203,22 @@ export class FilterService {
   /**
    * Filter 2: Current time must be within gateway's time range
    * Checks deposit operating hours (openingTime - closingTime)
+   * Merges gateway metaConfig with provider defaults
    */
-  private checkTimeRange(gateway: Gateway): boolean {
-    if (!gateway.serviceTime || !gateway.serviceTime.deposit) {
-      return true; // No time restriction
-    }
+  private checkTimeRange(gateway: Gateway, providerMap: Map<string, ProviderConfig>): boolean {
+    const provider = providerMap.get(gateway.provider);
 
-    const { openingTime, closingTime } = gateway.serviceTime.deposit;
+    // Get merged service time: gateway metaConfig ?? provider defaults
+    const openingTime =
+      gateway.metaConfig?.operateTime?.deposit?.openingTime ??
+      gateway.serviceTime?.deposit?.openingTime ??
+      provider?.operateTime?.deposit?.openingTime;
+
+    const closingTime =
+      gateway.metaConfig?.operateTime?.deposit?.closingTime ??
+      gateway.serviceTime?.deposit?.closingTime ??
+      provider?.operateTime?.deposit?.closingTime;
+
     if (!openingTime || !closingTime) {
       return true; // No time restriction
     }
@@ -263,14 +280,22 @@ export class FilterService {
   /**
    * Filter 5: Balance must be greater than gateway's min limit
    * NOTE: NO depositAmount comparison - removed in V3
-   * Uses V2 field name: min (not minLimit)
+   * Merges gateway metaConfig with provider defaults
    */
   private checkBalanceLimit(
     gateway: Gateway,
-    balances: Record<string, number>
+    balances: Record<string, number>,
+    providerMap: Map<string, ProviderConfig>
   ): boolean {
     const balance = balances[gateway.gatewayId] || 0;
-    const minLimit = gateway.min || 0;
+    const provider = providerMap.get(gateway.provider);
+
+    // Get merged min limit: gateway metaConfig ?? gateway.min ?? provider defaults ?? 0
+    const minLimit =
+      gateway.metaConfig?.limit?.deposit?.min ??
+      gateway.min ??
+      provider?.limit?.deposit?.min ??
+      0;
 
     // Simple check: balance must exceed minimum limit
     const isValid = balance > minLimit;
@@ -287,12 +312,77 @@ export class FilterService {
   /**
    * Map gateway to response format
    * SECURITY: Explicitly whitelist safe fields only
-   * Uses V2 field names and structure
+   * Merges gateway metaConfig with provider defaults (V2 behavior)
    */
   private mapToResponse(
     gateway: Gateway,
-    balances: Record<string, number>
+    balances: Record<string, number>,
+    providerMap: Map<string, ProviderConfig>
   ): FilteredGateway {
+    const provider = providerMap.get(gateway.provider);
+
+    // Merge limits: gateway metaConfig ?? gateway.limit ?? provider defaults ?? hardcoded defaults
+    const depositMin =
+      gateway.metaConfig?.limit?.deposit?.min ??
+      gateway.limit?.deposit?.min ??
+      provider?.limit?.deposit?.min ??
+      100;
+    const depositMax =
+      gateway.metaConfig?.limit?.deposit?.max ??
+      gateway.limit?.deposit?.max ??
+      provider?.limit?.deposit?.max ??
+      1000000;
+    const withdrawMin =
+      gateway.metaConfig?.limit?.withdraw?.min ??
+      gateway.limit?.withdraw?.min ??
+      provider?.limit?.withdraw?.min ??
+      100;
+    const withdrawMax =
+      gateway.metaConfig?.limit?.withdraw?.max ??
+      gateway.limit?.withdraw?.max ??
+      provider?.limit?.withdraw?.max ??
+      1000000;
+
+    // Merge service time: gateway metaConfig ?? gateway.serviceTime ?? provider defaults
+    const serviceTime = {
+      deposit: {
+        openingTime:
+          gateway.metaConfig?.operateTime?.deposit?.openingTime ??
+          gateway.serviceTime?.deposit?.openingTime ??
+          provider?.operateTime?.deposit?.openingTime ??
+          '00:00',
+        closingTime:
+          gateway.metaConfig?.operateTime?.deposit?.closingTime ??
+          gateway.serviceTime?.deposit?.closingTime ??
+          provider?.operateTime?.deposit?.closingTime ??
+          '23:59',
+      },
+      withdraw: {
+        openingTime:
+          gateway.metaConfig?.operateTime?.withdraw?.openingTime ??
+          gateway.serviceTime?.withdraw?.openingTime ??
+          provider?.operateTime?.withdraw?.openingTime ??
+          '00:00',
+        closingTime:
+          gateway.metaConfig?.operateTime?.withdraw?.closingTime ??
+          gateway.serviceTime?.withdraw?.closingTime ??
+          provider?.operateTime?.withdraw?.closingTime ??
+          '23:59',
+      },
+    };
+
+    // Build option with sanitized fee and feeEstimationTable
+    const option = this.buildOption(provider?.option, gateway.option);
+
+    // Group-related fields (V2 format)
+    const isGroup = !!gateway.groupId;
+    const type = gateway.type ?? (isGroup ? 'group' : 'individual');
+    const description =
+      gateway.description ||
+      (isGroup
+        ? `Group ${gateway.provider} gateway`
+        : `Individual ${gateway.provider} gateway`);
+
     return {
       // Basic info
       gatewayId: gateway.gatewayId,
@@ -302,28 +392,174 @@ export class FilterService {
       status: gateway.status,
       paymentMethods: gateway.paymentMethods,
 
-      // Limit fields (V2 names)
-      min: gateway.min,
-      max: gateway.max,
-      limit: gateway.limit,
-      balanceLimit: gateway.balanceLimit,
+      // Limit fields (V2 names) - merged values
+      min: depositMin,
+      max: depositMax,
+      limit: {
+        deposit: { min: depositMin, max: depositMax },
+        withdraw: { min: withdrawMin, max: withdrawMax },
+      },
+      balanceLimit: gateway.metaConfig?.balanceLimit ?? gateway.balanceLimit ?? null,
 
-      // Group-related fields
-      type: gateway.type,
-      isGroup: gateway.isGroup,
-      isInGroup: gateway.isInGroup,
-      group: gateway.group,
-      description: gateway.description,
+      // Group-related fields (V2 format)
+      type: type as 'individual' | 'group',
+      isGroup: isGroup,
+      isInGroup: gateway.isInGroup ?? isGroup,
+      group: gateway.groupId
+        ? { groupId: gateway.groupId, groupName: gateway.groupId }
+        : gateway.group ?? null,
+      description,
 
       // Balance fields (V2 names) - use balance from balances map
       currentBalance: balances[gateway.gatewayId] ?? gateway.currentBalance ?? 0,
       totalBalance: balances[gateway.gatewayId] ?? gateway.totalBalance ?? 0,
 
-      // Service time
-      serviceTime: gateway.serviceTime,
+      // Service time (merged)
+      serviceTime,
 
-      // Option with fee info
-      option: gateway.option,
+      // Option with fee info (sanitized with feeEstimationTable)
+      option,
     };
+  }
+
+  /**
+   * Build option object with sanitized fee and feeEstimationTable
+   */
+  private buildOption(providerOption?: any, gatewayOption?: any): any {
+    const option = providerOption ?? gatewayOption ?? {};
+
+    if (!option.fee) {
+      return option;
+    }
+
+    // Sanitize fee structure
+    const sanitizedFee = this.sanitizeFeeStructure(option.fee);
+
+    // Generate fee estimation table
+    const feeEstimationTable = this.generateFeeEstimationTable(sanitizedFee);
+
+    return {
+      ...option,
+      fee: sanitizedFee,
+      feeEstimationTable,
+    };
+  }
+
+  /**
+   * Sanitize fee structure to consistent format
+   */
+  private sanitizeFeeStructure(fee: any): any {
+    if (!fee) return {};
+
+    const sanitized: any = {};
+
+    // Handle legacy fee.value object format
+    const legacyValue = fee.value && typeof fee.value === 'object' ? fee.value : null;
+    const legacyType = fee.type || 'fixed';
+
+    if (fee.deposit) {
+      sanitized.deposit = {
+        type: fee.deposit.type || 'fixed',
+        value: fee.deposit.value || 0,
+        min: fee.deposit.min || 0,
+      };
+    } else if (legacyValue && typeof legacyValue.deposit === 'number') {
+      sanitized.deposit = {
+        type: legacyType,
+        value: legacyValue.deposit,
+        min: legacyValue.min || 0,
+      };
+    }
+
+    if (fee.withdraw) {
+      sanitized.withdraw = {
+        type: fee.withdraw.type || 'fixed',
+        value: fee.withdraw.value || 0,
+        min: fee.withdraw.min || 0,
+      };
+    } else if (legacyValue && typeof legacyValue.withdraw === 'number') {
+      sanitized.withdraw = {
+        type: legacyType,
+        value: legacyValue.withdraw,
+        min: legacyValue.min || 0,
+      };
+    }
+
+    if (fee.settlement) {
+      sanitized.settlement = {};
+      if (fee.settlement.normal) {
+        sanitized.settlement.normal = {
+          type: fee.settlement.normal.type || 'fixed',
+          value: fee.settlement.normal.value || 0,
+          min: fee.settlement.normal.min || 0,
+        };
+      }
+      if (fee.settlement.usdt) {
+        sanitized.settlement.usdt = {
+          type: fee.settlement.usdt.type || 'fixed',
+          value: fee.settlement.usdt.value || 0,
+          min: fee.settlement.usdt.min || 0,
+        };
+      }
+    }
+
+    return sanitized;
+  }
+
+  /**
+   * Generate fee estimation table for amounts 50, 100, 150, ... 1000
+   */
+  private generateFeeEstimationTable(
+    feeStructure: any
+  ): Record<string, { withdraw: number; deposit: number }> {
+    // Create cache key from fee structure
+    const cacheKey = JSON.stringify({
+      deposit: feeStructure?.deposit,
+      withdraw: feeStructure?.withdraw,
+    });
+
+    // Check cache first
+    if (this.feeTableCache.has(cacheKey)) {
+      return this.feeTableCache.get(cacheKey)!;
+    }
+
+    const table: Record<string, { withdraw: number; deposit: number }> = {};
+
+    // Generate amounts from 50 to 1000 with 50 interval
+    for (let amount = 50; amount <= 1000; amount += 50) {
+      const depositFee = this.calculateFee(amount, feeStructure?.deposit);
+      const withdrawFee = this.calculateFee(amount, feeStructure?.withdraw);
+
+      table[amount.toString()] = {
+        withdraw: withdrawFee,
+        deposit: depositFee,
+      };
+    }
+
+    // Save to cache
+    this.feeTableCache.set(cacheKey, table);
+
+    return table;
+  }
+
+  /**
+   * Calculate fee for given amount and fee config
+   */
+  private calculateFee(
+    amount: number,
+    feeConfig?: { type?: string; value?: number; min?: number }
+  ): number {
+    if (!feeConfig) return 0;
+
+    let calculatedFee = 0;
+
+    if (feeConfig.type === 'fixed') {
+      calculatedFee = feeConfig.value || 0;
+    } else if (feeConfig.type === 'percentage' || feeConfig.type === 'percent') {
+      calculatedFee = Math.round(((amount * (feeConfig.value || 0)) / 100) * 100) / 100;
+      calculatedFee = Math.max(calculatedFee, feeConfig.min || 0);
+    }
+
+    return calculatedFee;
   }
 }
