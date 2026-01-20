@@ -185,12 +185,12 @@ describe('FilterService', () => {
             status: true,
             min: 100,
             max: 50000,
-            currentBalance: 1000,
-            totalBalance: 5000,
+            currentBalance: 0, // Gateway always has 0, balance comes from balances map
+            totalBalance: 0,
             extraField: 'extra-value',
           }),
         ],
-        balances: { 'gw-001': 1000 },
+        balances: { 'gw-001': 1000 }, // Real balance from balance service
         errors: {},
         providers: [],
       };
@@ -203,8 +203,9 @@ describe('FilterService', () => {
         status: true,
         min: 100,
         max: 50000,
+        // V2 behavior: both balance fields come from balances map
         currentBalance: 1000,
-        totalBalance: 5000,
+        totalBalance: 1000,
       });
       // Security: extraField should NOT be included (no spread operator)
       expect(result[0]).not.toHaveProperty('extraField');
@@ -272,14 +273,14 @@ describe('FilterService', () => {
       expect(result[0]).not.toHaveProperty('backupSite');
     });
 
-    it('should include balance fields from gateway (currentBalance, totalBalance)', () => {
+    it('should include balance fields from balances map (V2 behavior)', () => {
       const batchData: BatchDataResponse = {
         gateways: [
           createGateway({
             gatewayId: 'gw-with-balance',
             provider: 'provider-a',
-            currentBalance: 5000,
-            totalBalance: 10000,
+            currentBalance: 0, // Gateway always has 0, real balance comes from balances map
+            totalBalance: 0,
           }),
           createGateway({
             gatewayId: 'gw-without-balance',
@@ -288,18 +289,19 @@ describe('FilterService', () => {
             totalBalance: 0,
           }),
         ],
-        balances: { 'gw-with-balance': 5000 }, // Only one gateway has balance in balances map
+        balances: { 'gw-with-balance': 5000 }, // Real balance from balance service
         errors: {},
         providers: [],
       };
 
       const result = filterService.evaluateFilters(batchData);
 
-      // Only gw-with-balance should pass (has balance > min)
+      // Only gw-with-balance should pass (has balance > min from balances map)
       expect(result).toHaveLength(1);
       expect(result[0].gatewayId).toBe('gw-with-balance');
+      // V2 behavior: both currentBalance and totalBalance come from balances map
       expect(result[0].currentBalance).toBe(5000);
-      expect(result[0].totalBalance).toBe(10000);
+      expect(result[0].totalBalance).toBe(5000);
     });
 
     it('should include group-related fields (V2 format)', () => {
