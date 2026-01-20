@@ -117,12 +117,20 @@ app.get('/ready', async (c) => {
 
     // Check if at least one site has been initialized
     let initialized = false;
-    for (const site of config.sites) {
-      const data = await cache.get(site);
-      if (data) {
-        initialized = true;
-        break;
+
+    if (config.sites.length > 0) {
+      // Static site list mode: check configured sites
+      for (const site of config.sites) {
+        const data = await cache.get(site);
+        if (data) {
+          initialized = true;
+          break;
+        }
       }
+    } else {
+      // Auto-discovery mode: check if any cache keys exist
+      const cacheKeys = await cache.client.keys('gateway-list:*:primary');
+      initialized = cacheKeys.length > 0;
     }
 
     if (!initialized) {

@@ -2,53 +2,83 @@ labels:
   io.cattle.role: project
   io.rancher.app_min_version: 9.0.2
 questions:
-  - variable: NODE_ENV
+  - variable: config.nodeEnv
     label: "Node Environment"
     description: "Node environment (production/staging/development)"
     type: string
     default: "production"
 
-  - variable: REDIS_HOST
+  - variable: config.redis.host
     label: "Redis Host"
-    description: "Redis server hostname"
+    description: "Redis server hostname (use FQDN for cross-namespace: service.namespace)"
     type: string
-    default: "redis-master"
+    default: "redis-cache-deployment.default"
 
-  - variable: REDIS_PORT
+  - variable: config.redis.port
     label: "Redis Port"
     description: "Redis server port"
     type: string
-    default: "6379"
+    default: "6378"
 
-  - variable: REDIS_PASSWORD
+  - variable: config.redis.db
+    label: "Redis Database"
+    description: "Redis database number"
+    type: string
+    default: "0"
+
+  - variable: config.redis.password
     label: "Redis Password"
     description: "Redis authentication password"
     type: string
 
-  - variable: MANAGER_API_URL
+  - variable: config.cache.primaryTtl
+    label: "Primary Cache TTL (seconds)"
+    description: "Primary cache time-to-live in seconds"
+    type: string
+    default: "30"
+
+  - variable: config.cache.staleTtl
+    label: "Stale Cache TTL (seconds)"
+    description: "Stale cache fallback time-to-live in seconds"
+    type: string
+    default: "3600"
+
+  - variable: config.managerApi.url
     label: "Manager API URL"
     description: "KOB Payment Gateway API endpoint"
     type: string
-    default: "http://kob-payment-gateway:4000"
+    default: "http://kob-payment-gateway-production:80"
 
-  - variable: MANAGER_API_TOKEN
+  - variable: config.managerApi.token
     label: "Manager API Token"
     description: "Internal API authentication token"
     type: string
 
-  - variable: SITES
-    label: "Sites to Monitor"
-    description: "Comma-separated list of sites (e.g., site1,site2,site3)"
+  - variable: config.workerConfig.intervalMs
+    label: "Worker Interval (milliseconds)"
+    description: "How often worker fetches data from manager API"
     type: string
-    default: "site1,site2,site3"
+    default: "15000"
 
-  - variable: HOST
+  - variable: config.workerConfig.timeoutMs
+    label: "Worker Timeout (milliseconds)"
+    description: "Timeout for manager API requests"
+    type: string
+    default: "10000"
+
+  - variable: config.sites
+    label: "Sites to Monitor (Optional)"
+    description: "Leave empty to auto-discover all sites from manager API, or specify comma-separated list (e.g., site1,site2,site3)"
+    type: string
+    default: ""
+
+  - variable: ingress.hosts[0].host
     label: "Ingress Hostname"
-    description: "Domain for the gateway list service"
+    description: "Production domain for the gateway list service"
     type: string
-    default: "gateway-list.example.com"
+    default: "gl.sapan.link"
 
-  - variable: LOG_LEVEL
+  - variable: config.logLevel
     label: "Log Level"
     description: "Application log level (error/warn/info/debug)"
     type: string

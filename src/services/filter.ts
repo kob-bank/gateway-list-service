@@ -1,15 +1,55 @@
 import type { BatchDataResponse } from './manager-api';
 
+/**
+ * Gateway interface - matches V2 API field names and structure
+ */
 export interface Gateway {
   gatewayId: string;
   provider: string;
-  status: string;
-  timeRange: {
-    start: string;
-    end: string;
+  name: string;
+  site: string;
+  status: boolean;
+  paymentMethods?: string[];
+
+  // Limit fields (V2 names)
+  min: number;
+  max: number;
+  limit: {
+    deposit: { min: number; max: number };
+    withdraw: { min: number; max: number };
   };
-  minLimit: number;
-  maxLimit: number;
+  balanceLimit: number | null;
+
+  // Group-related fields
+  type: 'individual' | 'group';
+  isGroup: boolean;
+  isInGroup: boolean;
+  group: { groupId: string; groupName: string } | null;
+  description: string;
+
+  // Balance fields (V2 names)
+  currentBalance: number;
+  totalBalance: number;
+
+  // Service time
+  serviceTime?: {
+    deposit?: {
+      openingTime: string;
+      closingTime: string;
+    };
+    withdraw?: {
+      openingTime: string;
+      closingTime: string;
+    };
+  };
+
+  // Option with fee info
+  option?: {
+    fee?: any;
+    feeEstimationTable?: Record<string, any>;
+    [key: string]: any;
+  };
+
   [key: string]: any;
 }
 
@@ -18,12 +58,55 @@ export interface FilterRequest {
   // errorLimit is fixed at 5 - not a parameter
 }
 
+/**
+ * FilteredGateway interface - matches V2 API field names and structure
+ */
 export interface FilteredGateway {
   gatewayId: string;
   provider: string;
-  minLimit: number;
-  maxLimit: number;
-  [key: string]: any;
+  name: string;
+  site: string;
+  status: boolean;
+  paymentMethods?: string[];
+
+  // Limit fields (V2 names)
+  min: number;
+  max: number;
+  limit: {
+    deposit: { min: number; max: number };
+    withdraw: { min: number; max: number };
+  };
+  balanceLimit: number | null;
+
+  // Group-related fields
+  type: 'individual' | 'group';
+  isGroup: boolean;
+  isInGroup: boolean;
+  group: { groupId: string; groupName: string } | null;
+  description: string;
+
+  // Balance fields (V2 names)
+  currentBalance: number;
+  totalBalance: number;
+
+  // Service time
+  serviceTime?: {
+    deposit?: {
+      openingTime: string;
+      closingTime: string;
+    };
+    withdraw?: {
+      openingTime: string;
+      closingTime: string;
+    };
+  };
+
+  // Option with fee info
+  option?: {
+    fee?: any;
+    feeEstimationTable?: Record<string, any>;
+    [key: string]: any;
+  };
 }
 
 /**
@@ -50,7 +133,7 @@ export class FilterService {
 
     const filtered = gateways
       .filter((gateway) => this.applyAllFilters(gateway, balances, errors))
-      .map((gateway) => this.mapToResponse(gateway));
+      .map((gateway) => this.mapToResponse(gateway, balances));
 
     const duration = Date.now() - startTime;
     console.log(`[Filter] Filtered to ${filtered.length} gateways in ${duration}ms`);
@@ -95,11 +178,10 @@ export class FilterService {
   }
 
   /**
-   * Filter 1: Status must be 'active' or 'enabled'
+   * Filter 1: Status must be true (boolean)
    */
   private checkStatus(gateway: Gateway): boolean {
-    const validStatuses = ['active', 'enabled', 'online'];
-    const isValid = validStatuses.includes(gateway.status?.toLowerCase());
+    const isValid = gateway.status === true;
 
     if (!isValid) {
       console.debug(
@@ -112,26 +194,32 @@ export class FilterService {
 
   /**
    * Filter 2: Current time must be within gateway's time range
+   * Checks deposit operating hours (openingTime - closingTime)
    */
   private checkTimeRange(gateway: Gateway): boolean {
-    if (!gateway.timeRange) {
+    if (!gateway.serviceTime || !gateway.serviceTime.deposit) {
+      return true; // No time restriction
+    }
+
+    const { openingTime, closingTime } = gateway.serviceTime.deposit;
+    if (!openingTime || !closingTime) {
       return true; // No time restriction
     }
 
     const now = new Date();
     const currentTime = now.getHours() * 60 + now.getMinutes();
 
-    const [startHour, startMin] = gateway.timeRange.start.split(':').map(Number);
-    const [endHour, endMin] = gateway.timeRange.end.split(':').map(Number);
+    const [openHour, openMin] = openingTime.split(':').map(Number);
+    const [closeHour, closeMin] = closingTime.split(':').map(Number);
 
-    const startTime = startHour * 60 + startMin;
-    const endTime = endHour * 60 + endMin;
+    const startTime = openHour * 60 + openMin;
+    const endTime = closeHour * 60 + closeMin;
 
     const isValid = currentTime >= startTime && currentTime <= endTime;
 
     if (!isValid) {
       console.debug(
-        `[Filter] Gateway ${gateway.gatewayId} filtered out by time range: ${gateway.timeRange.start}-${gateway.timeRange.end}`
+        `[Filter] Gateway ${gateway.gatewayId} filtered out by time range: ${openingTime}-${closingTime}`
       );
     }
 
@@ -173,15 +261,16 @@ export class FilterService {
   }
 
   /**
-   * Filter 5: Balance must be greater than gateway's minLimit
+   * Filter 5: Balance must be greater than gateway's min limit
    * NOTE: NO depositAmount comparison - removed in V3
+   * Uses V2 field name: min (not minLimit)
    */
   private checkBalanceLimit(
     gateway: Gateway,
     balances: Record<string, number>
   ): boolean {
     const balance = balances[gateway.gatewayId] || 0;
-    const minLimit = gateway.minLimit || 0;
+    const minLimit = gateway.min || 0;
 
     // Simple check: balance must exceed minimum limit
     const isValid = balance > minLimit;
@@ -197,15 +286,44 @@ export class FilterService {
 
   /**
    * Map gateway to response format
+   * SECURITY: Explicitly whitelist safe fields only
+   * Uses V2 field names and structure
    */
-  private mapToResponse(gateway: Gateway): FilteredGateway {
+  private mapToResponse(
+    gateway: Gateway,
+    balances: Record<string, number>
+  ): FilteredGateway {
     return {
+      // Basic info
       gatewayId: gateway.gatewayId,
       provider: gateway.provider,
-      minLimit: gateway.minLimit,
-      maxLimit: gateway.maxLimit,
-      // Include any other fields from original gateway
-      ...gateway,
+      name: gateway.name,
+      site: gateway.site,
+      status: gateway.status,
+      paymentMethods: gateway.paymentMethods,
+
+      // Limit fields (V2 names)
+      min: gateway.min,
+      max: gateway.max,
+      limit: gateway.limit,
+      balanceLimit: gateway.balanceLimit,
+
+      // Group-related fields
+      type: gateway.type,
+      isGroup: gateway.isGroup,
+      isInGroup: gateway.isInGroup,
+      group: gateway.group,
+      description: gateway.description,
+
+      // Balance fields (V2 names) - use balance from balances map
+      currentBalance: balances[gateway.gatewayId] ?? gateway.currentBalance ?? 0,
+      totalBalance: balances[gateway.gatewayId] ?? gateway.totalBalance ?? 0,
+
+      // Service time
+      serviceTime: gateway.serviceTime,
+
+      // Option with fee info
+      option: gateway.option,
     };
   }
 }

@@ -3,11 +3,11 @@
 # Image configuration
 image:
   repository: registry.digitalocean.com/kob-payment/gateway-list-service
-  tag: "latest"
+  tag: "v1.0.12"  # Updated by CI/CD on release
   pullPolicy: IfNotPresent
 
 imagePullSecrets:
-  - name: kob-payment-registry
+  - name: kob-payment
 nameOverride: ""
 fullnameOverride: ""
 
@@ -131,8 +131,8 @@ config:
 
   # Redis Configuration
   redis:
-    host: redis-master
-    port: 6379
+    host: redis-cache-deployment.default  # Redis in default namespace (FQDN required for cross-namespace)
+    port: 6378                            # Custom Redis port
     password: ""
     db: 0
 
@@ -143,16 +143,16 @@ config:
 
   # Manager API Configuration
   managerApi:
-    url: http://kob-payment-gateway:4000
-    token: "your-secret-token"  # Override this in secrets
+    url: http://kob-payment-gateway-production:80
+    token: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"
 
   # Worker Configuration
   workerConfig:
     intervalMs: 15000
     timeoutMs: 10000
 
-  # Sites to monitor (comma-separated)
-  sites: "site1,site2,site3"
+  # Sites to monitor (optional - auto-discovered from manager API if empty)
+  sites: ""
 
   # Logging
   logLevel: info
@@ -164,7 +164,7 @@ ingress:
   annotations:
     nginx.ingress.kubernetes.io/rate-limit: "1000"
   hosts:
-    - host: gateway-list.example.com
+    - host: gl.sapan.link
       paths:
         - path: /
           pathType: Prefix

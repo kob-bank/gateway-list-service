@@ -31,8 +31,12 @@ const configSchema = z.object({
     timeoutMs: z.coerce.number().default(10000),
   }),
 
-  // Sites
-  sites: z.string().transform((s) => s.split(',').map((site) => site.trim())),
+  // Sites (optional - worker will auto-discover from manager API)
+  sites: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(',').map((site) => site.trim()) : []))
+    .default(''),
 
   // Logging
   logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
