@@ -32,39 +32,34 @@ jobs:
         env:
           NODE_ENV: test
 
-      - name: Get new version
-        id: new_version
-        uses: mathieudutour/github-tag-action@v6.1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          release_branches: "main,release"
-          dry_run: true
-
-      - name: Update package.json version
-        uses: jaywcjlove/github-action-package@v1.3.1
-        with:
-          path: 'package.json'
-          version: ${{ steps.new_version.outputs.new_version }}
-
-      - name: Commit updated version
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          file_pattern: 'package.json'
-          commit_message: "${{ steps.new_version.outputs.new_tag }}"
-
-      - name: Bump version and push tag
+      - name: Get latest git tag
         id: tag_version
-        uses: mathieudutour/github-tag-action@v6.1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          release_branches: "main,release"
+        run: |
+          git fetch --tags
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          VERSION=${LATEST_TAG#v}
+          echo "new_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "new_version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using git tag: $LATEST_TAG (version: $VERSION)"
+
+      - name: Update package.json and Chart.yaml
+        run: |
+          # Update package.json
+          jq '.version = "${{ steps.tag_version.outputs.new_version }}"' package.json > package.json.tmp
+          mv package.json.tmp package.json
+          
+          # Update Chart.yaml
+          sed -i "s/^version: .*/version: ${{ steps.tag_version.outputs.new_version }}/" chart/Chart.yaml
+          sed -i "s/^appVersion: .*/appVersion: \"${{ steps.tag_version.outputs.new_version }}\"/" chart/Chart.yaml
+          
+          echo "Updated package.json and Chart.yaml to version ${{ steps.tag_version.outputs.new_version }}"
 
       - name: Create a GitHub release
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.tag_version.outputs.new_tag }}
           name: Release ${{ steps.tag_version.outputs.new_tag }}
-          body: ${{ steps.tag_version.outputs.changelog }}
+          body: "Release ${{ steps.tag_version.outputs.new_tag }}"
 
       - name: Install doctl
         uses: digitalocean/action-doctl@v2

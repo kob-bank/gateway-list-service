@@ -126,10 +126,10 @@ describe('API Server', () => {
       expect(response.status).toBe(200);
 
       const data = await response.json();
-      expect(data).toHaveProperty('success', true);
-      expect(data).toHaveProperty('data');
-      expect(data.data).toHaveProperty('gateways');
-      expect(data.data).toHaveProperty('site', 'site1');
+      expect(data).toHaveProperty('status', true);
+      expect(data).toHaveProperty('gateway');
+      expect(data).toHaveProperty('correlationId');
+      expect(data).toHaveProperty('cachedAt');
     });
 
     it('should return 400 for missing site parameter', async () => {
@@ -144,7 +144,7 @@ describe('API Server', () => {
       expect(response.status).toBe(400);
 
       const data = await response.json();
-      expect(data).toHaveProperty('success', false);
+      expect(data).toHaveProperty('status', false);
       expect(data).toHaveProperty('error');
     });
 
