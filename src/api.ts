@@ -51,9 +51,9 @@ app.post('/v3/gateway', async (c) => {
     // Return cached, pre-filtered gateway list (V2 format)
     return c.json({
       status: true,
-      gateway: cachedData.gateways || [],
+      site,
       correlationId: crypto.randomUUID(),
-      cachedAt: cachedData.timestamp || null,
+      gateway: cachedData.gateways || [],
     });
   } catch (error) {
     console.error('[API] Error processing /v3/gateway:', error);
