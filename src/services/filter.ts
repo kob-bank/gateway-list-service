@@ -177,10 +177,9 @@ export class FilterService {
       return false;
     }
 
-    // Filter 5: Balance limit check (use merged min limit)
-    if (!this.checkBalanceLimit(gateway, balances, providerMap)) {
-      return false;
-    }
+    // Filter 5: Balance limit - REMOVED
+    // Balance is informational only, not a filter criterion
+    // Users should see all gateways and decide based on balance info
 
     return true;
   }

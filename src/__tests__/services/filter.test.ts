@@ -114,16 +114,17 @@ describe('FilterService', () => {
       expect(result).toHaveLength(1);
     });
 
-    it('should filter out gateways with insufficient balance', () => {
+    it('should include gateways with low balance (balance filter removed)', () => {
       const batchData: BatchDataResponse = {
         gateways: [createGateway()], // min is 100 from metaConfig
-        balances: { 'gw-001': 50 }, // Below min
+        balances: { 'gw-001': 50 }, // Below min - but still included
         errors: {},
         providers: [createProvider()],
       };
 
       const result = filterService.evaluateFilters(batchData);
-      expect(result).toEqual([]);
+      expect(result).toHaveLength(1);
+      expect(result[0].currentBalance).toBe(50);
     });
 
     it('should include gateways with sufficient balance', () => {
@@ -136,6 +137,7 @@ describe('FilterService', () => {
 
       const result = filterService.evaluateFilters(batchData);
       expect(result).toHaveLength(1);
+      expect(result[0].currentBalance).toBe(1000);
     });
 
     it('should filter multiple gateways correctly', () => {
@@ -148,7 +150,7 @@ describe('FilterService', () => {
         balances: {
           'gw-001': 1000,
           'gw-002': 1000,
-          'gw-003': 50, // Insufficient
+          'gw-003': 50, // Low balance - but still included now
         },
         errors: {},
         providers: [
@@ -159,8 +161,9 @@ describe('FilterService', () => {
       };
 
       const result = filterService.evaluateFilters(batchData);
-      expect(result).toHaveLength(1);
-      expect(result[0].gatewayId).toBe('gw-001');
+      expect(result).toHaveLength(2); // gw-001 and gw-003 (gw-002 filtered by status)
+      expect(result.map((g) => g.gatewayId)).toContain('gw-001');
+      expect(result.map((g) => g.gatewayId)).toContain('gw-003');
     });
 
     it('should use errorLimit = 5 (hardcoded)', () => {
@@ -309,12 +312,17 @@ describe('FilterService', () => {
 
       const result = filterService.evaluateFilters(batchData);
 
-      // Only gw-with-balance should pass (has balance > min from balances map)
-      expect(result).toHaveLength(1);
-      expect(result[0].gatewayId).toBe('gw-with-balance');
+      // Both gateways pass now (balance filter removed)
+      expect(result).toHaveLength(2);
+      
       // V2 behavior: both currentBalance and totalBalance come from balances map
-      expect(result[0].currentBalance).toBe(5000);
-      expect(result[0].totalBalance).toBe(5000);
+      const withBalance = result.find((g) => g.gatewayId === 'gw-with-balance')!;
+      expect(withBalance.currentBalance).toBe(5000);
+      expect(withBalance.totalBalance).toBe(5000);
+      
+      const withoutBalance = result.find((g) => g.gatewayId === 'gw-without-balance')!;
+      expect(withoutBalance.currentBalance).toBe(0);
+      expect(withoutBalance.totalBalance).toBe(0);
     });
 
     it('should include group-related fields (V2 format)', () => {
