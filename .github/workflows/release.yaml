@@ -60,6 +60,8 @@ jobs:
           tag: ${{ steps.tag_version.outputs.new_tag }}
           name: Release ${{ steps.tag_version.outputs.new_tag }}
           body: "Release ${{ steps.tag_version.outputs.new_tag }}"
+          allowUpdates: true
+          skipIfReleaseExists: false
 
       - name: Install doctl
         uses: digitalocean/action-doctl@v2
