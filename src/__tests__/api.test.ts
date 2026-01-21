@@ -160,7 +160,7 @@ describe('API Server', () => {
       expect(response.status).toBe(400);
 
       const data = await response.json();
-      expect(data).toHaveProperty('success', false);
+      expect(data).toHaveProperty('status', false);
     });
   });
 });
