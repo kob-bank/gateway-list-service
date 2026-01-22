@@ -53,8 +53,16 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a ${{ steps.tag_version.outputs.new_tag }} -m "Release ${{ steps.tag_version.outputs.new_tag }}"
-          git push origin ${{ steps.tag_version.outputs.new_tag }}
+          git fetch --tags
+          
+          # Check if tag already exists
+          if git rev-parse ${{ steps.tag_version.outputs.new_tag }} >/dev/null 2>&1; then
+            echo "Tag ${{ steps.tag_version.outputs.new_tag }} already exists, skipping creation"
+          else
+            git tag -a ${{ steps.tag_version.outputs.new_tag }} -m "Release ${{ steps.tag_version.outputs.new_tag }}"
+            git push origin ${{ steps.tag_version.outputs.new_tag }}
+            echo "Created and pushed tag ${{ steps.tag_version.outputs.new_tag }}"
+          fi
 
       - name: Create a GitHub release
         uses: ncipollo/release-action@v1
