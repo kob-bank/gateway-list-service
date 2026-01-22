@@ -112,7 +112,8 @@ export interface FilteredGateway {
  */
 export class FilterService {
   // Hardcoded error limit (not configurable)
-  private readonly ERROR_LIMIT = 5;
+  // Reduced from 5 to 3 to hide gateways with provider errors more aggressively
+  private readonly ERROR_LIMIT = 3;
 
   // Cache for fee estimation tables
   private feeTableCache = new Map<string, Record<string, { withdraw: number; deposit: number }>>();
