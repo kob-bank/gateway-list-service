@@ -28,6 +28,9 @@ const createGateway = (overrides: Partial<any> = {}) => ({
 // Helper to create a provider config
 const createProvider = (overrides: Partial<ProviderConfig> = {}): ProviderConfig => ({
   provider: 'provider-a',
+  isActive: true,
+  isDisabled: false,
+  state: 'normal',
   limit: {
     deposit: { min: 100, max: 50000 },
     withdraw: { min: 100, max: 50000 },
@@ -357,8 +360,8 @@ describe('FilterService', () => {
             metaConfig: {
               limit: { deposit: { min: 100, max: 50000 }, withdraw: { min: 100, max: 50000 } },
               operateTime: {
-                deposit: { openingTime: '08:00', closingTime: '22:00' },
-                withdraw: { openingTime: '09:00', closingTime: '21:00' },
+                deposit: { openingTime: '00:00', closingTime: '23:59' },
+                withdraw: { openingTime: '00:00', closingTime: '23:59' },
               },
               balanceLimit: null,
             },
@@ -366,14 +369,14 @@ describe('FilterService', () => {
         ],
         balances: { 'gw-time': 5000 },
         errors: {},
-        providers: [createProvider()],
+        providers: [createProvider({ provider: 'provider-a' })],
       };
 
       const result = filterService.evaluateFilters(batchData);
       expect(result).toHaveLength(1);
       expect(result[0].serviceTime).toEqual({
-        deposit: { openingTime: '08:00', closingTime: '22:00' },
-        withdraw: { openingTime: '09:00', closingTime: '21:00' },
+        deposit: { openingTime: '00:00', closingTime: '23:59' },
+        withdraw: { openingTime: '00:00', closingTime: '23:59' },
       });
     });
 
@@ -518,6 +521,163 @@ describe('FilterService', () => {
 
       expect(individual?.description).toBe('Individual provider-a gateway');
       expect(grouped?.description).toBe('Group provider-b gateway');
+    });
+
+    it('should filter out gateways when provider is disabled (isDisabled=true)', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [
+          createGateway({
+            gatewayId: 'gw-001',
+            provider: 'provider-disabled',
+          }),
+        ],
+        balances: { 'gw-001': 10000 },
+        errors: {},
+        providers: [
+          createProvider({
+            provider: 'provider-disabled',
+            isActive: true,
+            isDisabled: true, // Provider is disabled
+          }),
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      expect(result).toEqual([]);
+    });
+
+    it('should filter out gateways when provider is inactive (isActive=false)', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [
+          createGateway({
+            gatewayId: 'gw-001',
+            provider: 'provider-inactive',
+          }),
+        ],
+        balances: { 'gw-001': 10000 },
+        errors: {},
+        providers: [
+          createProvider({
+            provider: 'provider-inactive',
+            isActive: false, // Provider is inactive
+            isDisabled: false,
+          }),
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      expect(result).toEqual([]);
+    });
+
+    it('should filter out gateways when provider is both inactive and disabled', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [
+          createGateway({
+            gatewayId: 'gw-001',
+            provider: 'provider-dead',
+          }),
+        ],
+        balances: { 'gw-001': 10000 },
+        errors: {},
+        providers: [
+          createProvider({
+            provider: 'provider-dead',
+            isActive: false, // Inactive
+            isDisabled: true, // AND disabled
+          }),
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      expect(result).toEqual([]);
+    });
+
+    it('should include gateways when provider is active and not disabled', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [
+          createGateway({
+            gatewayId: 'gw-001',
+            provider: 'provider-active',
+          }),
+        ],
+        balances: { 'gw-001': 10000 },
+        errors: {},
+        providers: [
+          createProvider({
+            provider: 'provider-active',
+            isActive: true,
+            isDisabled: false,
+          }),
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      expect(result).toHaveLength(1);
+      expect(result[0].gatewayId).toBe('gw-001');
+    });
+
+    it('should filter out gateways when provider not found in providers list', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [
+          createGateway({
+            gatewayId: 'gw-001',
+            provider: 'provider-nonexistent',
+          }),
+        ],
+        balances: { 'gw-001': 10000 },
+        errors: {},
+        providers: [
+          createProvider({
+            provider: 'provider-other',
+          }),
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      expect(result).toEqual([]);
+    });
+
+    it('should handle multiple gateways with mixed provider statuses', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [
+          createGateway({
+            gatewayId: 'gw-001',
+            provider: 'provider-active',
+          }),
+          createGateway({
+            gatewayId: 'gw-002',
+            provider: 'provider-disabled',
+          }),
+          createGateway({
+            gatewayId: 'gw-003',
+            provider: 'provider-active',
+          }),
+        ],
+        balances: {
+          'gw-001': 10000,
+          'gw-002': 10000,
+          'gw-003': 10000,
+        },
+        errors: {},
+        providers: [
+          createProvider({
+            provider: 'provider-active',
+            isActive: true,
+            isDisabled: false,
+          }),
+          createProvider({
+            provider: 'provider-disabled',
+            isActive: true,
+            isDisabled: true, // This provider is disabled
+          }),
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      // Only gw-001 and gw-003 should pass (provider-active)
+      expect(result).toHaveLength(2);
+      expect(result[0].gatewayId).toBe('gw-001');
+      expect(result[1].gatewayId).toBe('gw-003');
     });
   });
 });

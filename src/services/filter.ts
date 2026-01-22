@@ -167,8 +167,8 @@ export class FilterService {
       return false;
     }
 
-    // Filter 3: Provider check (implicitly passed if exists)
-    if (!this.checkProvider(gateway)) {
+    // Filter 3: Provider existence and status check
+    if (!this.checkProvider(gateway, providerMap)) {
       return false;
     }
 
@@ -243,18 +243,39 @@ export class FilterService {
   }
 
   /**
-   * Filter 3: Provider must exist and be valid
+   * Filter 3: Provider must exist and be active
+   * Checks both gateway's provider field AND provider's status
    */
-  private checkProvider(gateway: Gateway): boolean {
-    const isValid = !!gateway.provider && gateway.provider.trim().length > 0;
-
-    if (!isValid) {
+  private checkProvider(
+    gateway: Gateway,
+    providerMap: Map<string, ProviderConfig>
+  ): boolean {
+    // Check 1: Gateway must have a provider field
+    if (!gateway.provider || gateway.provider.trim().length === 0) {
       console.debug(
-        `[Filter] Gateway ${gateway.gatewayId} filtered out: no provider`
+        `[Filter] Gateway ${gateway.gatewayId} filtered out: no provider field`
       );
+      return false;
     }
 
-    return isValid;
+    // Check 2: Provider must exist in providers list
+    const provider = providerMap.get(gateway.provider);
+    if (!provider) {
+      console.debug(
+        `[Filter] Gateway ${gateway.gatewayId} filtered out: provider ${gateway.provider} not found in providers list`
+      );
+      return false;
+    }
+
+    // Check 3: Provider must be active (isActive=true AND isDisabled=false)
+    if (!provider.isActive || provider.isDisabled) {
+      console.debug(
+        `[Filter] Gateway ${gateway.gatewayId} filtered out: provider ${gateway.provider} is inactive (isActive=${provider.isActive}, isDisabled=${provider.isDisabled})`
+      );
+      return false;
+    }
+
+    return true;
   }
 
   /**
