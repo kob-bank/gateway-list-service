@@ -91,15 +91,15 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            registry.digitalocean.com/kob-payment/gateway-list-service:${{ steps.tag_version.outputs.new_tag }}
+            registry.digitalocean.com/kob-payment/gateway-list-service:${{ steps.tag_version.outputs.new_version }}
             registry.digitalocean.com/kob-payment/gateway-list-service:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Update Helm chart values
         run: |
-          sed -i "s|tag: \".*\"|tag: \"${{ steps.tag_version.outputs.new_tag }}\"|" chart/values.yaml
-          echo "Updated chart/values.yaml image.tag to ${{ steps.tag_version.outputs.new_tag }}"
+          sed -i "s|tag: \".*\"|tag: \"${{ steps.tag_version.outputs.new_version }}\"|" chart/values.yaml
+          echo "Updated chart/values.yaml image.tag to ${{ steps.tag_version.outputs.new_version }}"
           cat chart/values.yaml | grep -A 2 "image:"
 
       - name: Push Helm chart
@@ -110,5 +110,5 @@ jobs:
           password: 147973
           chart-folder: chart
           force: true
-          version: ${{ steps.tag_version.outputs.new_tag }}
-          appVersion: ${{ steps.tag_version.outputs.new_tag }}
+          version: ${{ steps.tag_version.outputs.new_version }}
+          appVersion: ${{ steps.tag_version.outputs.new_version }}
