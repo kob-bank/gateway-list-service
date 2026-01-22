@@ -24,6 +24,14 @@ export interface FilterRequest {
   // errorLimit is fixed at 5 - not a parameter
 }
 
+export interface Provider {
+  provider: string;
+  isActive: boolean;
+  isDisabled: boolean;
+  state: string;
+  [key: string]: any;
+}
+
 export interface FilteredGateway {
   gatewayId: string;
   provider: string;
@@ -48,7 +56,8 @@ export interface FilteredGateway {
 
 /**
  * Filter evaluation service
- * Implements 5 filters WITHOUT depositAmount parameter
+ * Implements 6 filters WITHOUT depositAmount parameter
+ * Added provider status filter to hide gateways when provider is disabled
  */
 export class FilterService {
   // Hardcoded error limit (not configurable)
@@ -61,15 +70,26 @@ export class FilterService {
     batchData: BatchDataResponse,
     request: FilterRequest = {}
   ): FilteredGateway[] {
-    const { gateways = [], balances = {}, errors = {}, providers = {} } = batchData;
+    const { gateways = [], balances = {}, errors = {}, providers = [] } = batchData;
+
+    // Convert providers array to lookup map for efficient access
+    const providerMap: Record<string, Provider> = {};
+    if (Array.isArray(providers)) {
+      for (const provider of providers) {
+        if (provider.provider) {
+          providerMap[provider.provider] = provider;
+        }
+      }
+    }
 
     console.log(`[Filter] Evaluating ${gateways.length} gateways`);
+    console.log(`[Filter] Active providers: ${Object.keys(providerMap).length}`);
     console.log(`[Filter] Using errorLimit: ${this.ERROR_LIMIT} (hardcoded)`);
 
     const startTime = Date.now();
 
     const filtered = gateways
-      .filter((gateway) => this.applyAllFilters(gateway, balances, errors))
+      .filter((gateway) => this.applyAllFilters(gateway, balances, errors, providerMap))
       .map((gateway) => this.mapToResponse(gateway, balances));
 
     const duration = Date.now() - startTime;
@@ -79,14 +99,15 @@ export class FilterService {
   }
 
   /**
-   * Apply all 5 filters to a gateway
+   * Apply all 6 filters to a gateway
    */
   private applyAllFilters(
     gateway: Gateway,
     balances: Record<string, number>,
-    errors: Record<string, number>
+    errors: Record<string, number>,
+    providers: Record<string, Provider>
   ): boolean {
-    // Filter 1: Status check
+    // Filter 1: Gateway status check
     if (!this.checkStatus(gateway)) {
       return false;
     }
@@ -96,8 +117,8 @@ export class FilterService {
       return false;
     }
 
-    // Filter 3: Provider check (implicitly passed if exists)
-    if (!this.checkProvider(gateway)) {
+    // Filter 3: Provider existence and status check
+    if (!this.checkProvider(gateway, providers)) {
       return false;
     }
 
@@ -172,18 +193,39 @@ export class FilterService {
   }
 
   /**
-   * Filter 3: Provider must exist and be valid
+   * Filter 3: Provider must exist and be active
+   * Checks both gateway's provider field AND provider's status
    */
-  private checkProvider(gateway: Gateway): boolean {
-    const isValid = !!gateway.provider && gateway.provider.trim().length > 0;
-
-    if (!isValid) {
+  private checkProvider(
+    gateway: Gateway,
+    providers: Record<string, Provider>
+  ): boolean {
+    // Check 1: Gateway must have a provider field
+    if (!gateway.provider || gateway.provider.trim().length === 0) {
       console.debug(
-        `[Filter] Gateway ${gateway.gatewayId} filtered out: no provider`
+        `[Filter] Gateway ${gateway.gatewayId} filtered out: no provider field`
       );
+      return false;
     }
 
-    return isValid;
+    // Check 2: Provider must exist in providers list
+    const provider = providers[gateway.provider];
+    if (!provider) {
+      console.debug(
+        `[Filter] Gateway ${gateway.gatewayId} filtered out: provider ${gateway.provider} not found in providers list`
+      );
+      return false;
+    }
+
+    // Check 3: Provider must be active (isActive=true AND isDisabled=false)
+    if (!provider.isActive || provider.isDisabled) {
+      console.debug(
+        `[Filter] Gateway ${gateway.gatewayId} filtered out: provider ${gateway.provider} is inactive (isActive=${provider.isActive}, isDisabled=${provider.isDisabled})`
+      );
+      return false;
+    }
+
+    return true;
   }
 
   /**

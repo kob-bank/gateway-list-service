@@ -55,7 +55,9 @@ describe('FilterService', () => {
         ],
         balances: { 'gw-001': 10000 },
         errors: {},
-        providers: [],
+        providers: [
+          { provider: 'provider-a', isActive: true, isDisabled: false, state: 'normal' },
+        ],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -96,7 +98,9 @@ describe('FilterService', () => {
         ],
         balances: { 'gw-001': 10000 },
         errors: { 'provider-a': 4 }, // Below limit
-        providers: [],
+        providers: [
+          { provider: 'provider-a', isActive: true, isDisabled: false, state: 'normal' },
+        ],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -136,7 +140,9 @@ describe('FilterService', () => {
         ],
         balances: { 'gw-001': 1000 }, // Above minLimit
         errors: {},
-        providers: [],
+        providers: [
+          { provider: 'provider-a', isActive: true, isDisabled: false, state: 'normal' },
+        ],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -174,7 +180,11 @@ describe('FilterService', () => {
           'gw-003': 50, // Insufficient
         },
         errors: {},
-        providers: [],
+        providers: [
+          { provider: 'provider-a', isActive: true, isDisabled: false, state: 'normal' },
+          { provider: 'provider-b', isActive: true, isDisabled: false, state: 'normal' },
+          { provider: 'provider-c', isActive: true, isDisabled: false, state: 'normal' },
+        ],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -208,7 +218,10 @@ describe('FilterService', () => {
           'provider-a': 4, // Below limit
           'provider-b': 5, // At limit (should be filtered)
         },
-        providers: [],
+        providers: [
+          { provider: 'provider-a', isActive: true, isDisabled: false, state: 'normal' },
+          { provider: 'provider-b', isActive: true, isDisabled: false, state: 'normal' },
+        ],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -250,7 +263,9 @@ describe('FilterService', () => {
         ],
         balances: { 'gw-001': 1000 },
         errors: {},
-        providers: [],
+        providers: [
+          { provider: 'provider-a', isActive: true, isDisabled: false, state: 'normal' },
+        ],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -300,7 +315,9 @@ describe('FilterService', () => {
         ],
         balances: { 'gw-001': 1000 },
         errors: {},
-        providers: [],
+        providers: [
+          { provider: 'provider-a', isActive: true, isDisabled: false, state: 'normal' },
+        ],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -356,7 +373,10 @@ describe('FilterService', () => {
         ],
         balances: { 'gw-with-balance': 5000 }, // Only one gateway has balance
         errors: {},
-        providers: [],
+        providers: [
+          { provider: 'provider-a', isActive: true, isDisabled: false, state: 'normal' },
+          { provider: 'provider-b', isActive: true, isDisabled: false, state: 'normal' },
+        ],
       };
 
       const result = filterService.evaluateFilters(batchData);
@@ -365,6 +385,204 @@ describe('FilterService', () => {
       expect(result).toHaveLength(1);
       expect(result[0].gatewayId).toBe('gw-with-balance');
       expect(result[0].balance).toBe(5000);
+    });
+
+    it('should filter out gateways when provider is disabled (isDisabled=true)', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [
+          {
+            gatewayId: 'gw-001',
+            provider: 'provider-disabled',
+            status: 'active',
+            minLimit: 100,
+            maxLimit: 50000,
+          },
+        ],
+        balances: { 'gw-001': 10000 },
+        errors: {},
+        providers: [
+          {
+            provider: 'provider-disabled',
+            isActive: true,
+            isDisabled: true, // Provider is disabled
+            state: 'normal',
+          },
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      expect(result).toEqual([]);
+    });
+
+    it('should filter out gateways when provider is inactive (isActive=false)', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [
+          {
+            gatewayId: 'gw-001',
+            provider: 'provider-inactive',
+            status: 'active',
+            minLimit: 100,
+            maxLimit: 50000,
+          },
+        ],
+        balances: { 'gw-001': 10000 },
+        errors: {},
+        providers: [
+          {
+            provider: 'provider-inactive',
+            isActive: false, // Provider is inactive
+            isDisabled: false,
+            state: 'normal',
+          },
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      expect(result).toEqual([]);
+    });
+
+    it('should filter out gateways when provider is both inactive and disabled', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [
+          {
+            gatewayId: 'gw-001',
+            provider: 'provider-dead',
+            status: 'active',
+            minLimit: 100,
+            maxLimit: 50000,
+          },
+        ],
+        balances: { 'gw-001': 10000 },
+        errors: {},
+        providers: [
+          {
+            provider: 'provider-dead',
+            isActive: false, // Inactive
+            isDisabled: true, // AND disabled
+            state: 'normal',
+          },
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      expect(result).toEqual([]);
+    });
+
+    it('should include gateways when provider is active and not disabled', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [
+          {
+            gatewayId: 'gw-001',
+            provider: 'provider-active',
+            status: 'active',
+            minLimit: 100,
+            maxLimit: 50000,
+            site: 'testsite',
+            name: 'Test Gateway',
+          },
+        ],
+        balances: { 'gw-001': 10000 },
+        errors: {},
+        providers: [
+          {
+            provider: 'provider-active',
+            isActive: true,
+            isDisabled: false,
+            state: 'normal',
+          },
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      expect(result).toHaveLength(1);
+      expect(result[0].gatewayId).toBe('gw-001');
+    });
+
+    it('should filter out gateways when provider not found in providers list', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [
+          {
+            gatewayId: 'gw-001',
+            provider: 'provider-nonexistent',
+            status: 'active',
+            minLimit: 100,
+            maxLimit: 50000,
+          },
+        ],
+        balances: { 'gw-001': 10000 },
+        errors: {},
+        providers: [
+          {
+            provider: 'provider-other',
+            isActive: true,
+            isDisabled: false,
+            state: 'normal',
+          },
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      expect(result).toEqual([]);
+    });
+
+    it('should handle multiple gateways with mixed provider statuses', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [
+          {
+            gatewayId: 'gw-001',
+            provider: 'provider-active',
+            status: 'active',
+            minLimit: 100,
+            maxLimit: 50000,
+            site: 'testsite',
+            name: 'Gateway 1',
+          },
+          {
+            gatewayId: 'gw-002',
+            provider: 'provider-disabled',
+            status: 'active',
+            minLimit: 100,
+            maxLimit: 50000,
+            site: 'testsite',
+            name: 'Gateway 2',
+          },
+          {
+            gatewayId: 'gw-003',
+            provider: 'provider-active',
+            status: 'active',
+            minLimit: 100,
+            maxLimit: 50000,
+            site: 'testsite',
+            name: 'Gateway 3',
+          },
+        ],
+        balances: {
+          'gw-001': 10000,
+          'gw-002': 10000,
+          'gw-003': 10000,
+        },
+        errors: {},
+        providers: [
+          {
+            provider: 'provider-active',
+            isActive: true,
+            isDisabled: false,
+            state: 'normal',
+          },
+          {
+            provider: 'provider-disabled',
+            isActive: true,
+            isDisabled: true, // This provider is disabled
+            state: 'normal',
+          },
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      // Only gw-001 and gw-003 should pass (provider-active)
+      expect(result).toHaveLength(2);
+      expect(result[0].gatewayId).toBe('gw-001');
+      expect(result[1].gatewayId).toBe('gw-003');
     });
   });
 });
