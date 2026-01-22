@@ -280,6 +280,8 @@ export class FilterService {
 
   /**
    * Filter 4: Error count must be less than ERROR_LIMIT (5)
+   * NOTE: Error count is tracked per provider (not per gatewayId)
+   * If provider has >= 5 errors, ALL gateways using that provider are hidden
    */
   private checkErrorLimit(
     gateway: Gateway,
@@ -290,7 +292,7 @@ export class FilterService {
 
     if (!isValid) {
       console.debug(
-        `[Filter] Gateway ${gateway.gatewayId} filtered out by error limit: ${errorCount} >= ${this.ERROR_LIMIT}`
+        `[Filter] Gateway ${gateway.gatewayId} filtered out by error limit: provider ${gateway.provider} has ${errorCount} errors (limit: ${this.ERROR_LIMIT})`
       );
     }
 

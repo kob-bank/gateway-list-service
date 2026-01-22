@@ -117,6 +117,36 @@ describe('FilterService', () => {
       expect(result).toHaveLength(1);
     });
 
+    it('should filter ALL gateways when provider has error count >= 5', () => {
+      const batchData: BatchDataResponse = {
+        gateways: [
+          createGateway({ gatewayId: '15ppb_bitzpay', provider: 'bitzpay' }),
+          createGateway({ gatewayId: '20ppb_bitzpay', provider: 'bitzpay' }),
+          createGateway({ gatewayId: 'smilebank_bitzpay', provider: 'bitzpay' }),
+          createGateway({ gatewayId: '15ppb_paydiwa', provider: 'paydiwa' }), // Different provider
+        ],
+        balances: {
+          '15ppb_bitzpay': 10000,
+          '20ppb_bitzpay': 10000,
+          'smilebank_bitzpay': 10000,
+          '15ppb_paydiwa': 10000,
+        },
+        errors: {
+          'bitzpay': 5, // Provider bitzpay has 5 errors
+          'paydiwa': 0, // Provider paydiwa is fine
+        },
+        providers: [
+          createProvider({ provider: 'bitzpay' }),
+          createProvider({ provider: 'paydiwa' }),
+        ],
+      };
+
+      const result = filterService.evaluateFilters(batchData);
+      // All bitzpay gateways should be filtered out
+      expect(result).toHaveLength(1);
+      expect(result[0].gatewayId).toBe('15ppb_paydiwa');
+    });
+
     it('should include gateways with low balance (balance filter removed)', () => {
       const batchData: BatchDataResponse = {
         gateways: [createGateway()], // min is 100 from metaConfig
