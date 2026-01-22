@@ -280,19 +280,35 @@ export class FilterService {
 
   /**
    * Filter 4: Error count must be less than ERROR_LIMIT (5)
-   * NOTE: Error count is tracked per provider (not per gatewayId)
-   * If provider has >= 5 errors, ALL gateways using that provider are hidden
+   * NOTE: Error count is tracked per (site, provider) combination
+   * 
+   * Error key format: "site:provider" (e.g., "15ppb:bitzpay")
+   * 
+   * Example:
+   *   errors = { "15ppb:bitzpay": 5, "20ppb:bitzpay": 2 }
+   *   gateway = { gatewayId: "15ppb_bitzpay", provider: "bitzpay" }
+   *   → sitePrefix = "15ppb"
+   *   → errorKey = "15ppb:bitzpay"
+   *   → errorCount = 5
+   *   → Gateway filtered out
    */
   private checkErrorLimit(
     gateway: Gateway,
     errors: Record<string, number>
   ): boolean {
-    const errorCount = errors[gateway.provider] || 0;
+    // Extract site prefix from gatewayId (e.g., "15ppb_bitzpay" → "15ppb")
+    const gatewayIdParts = gateway.gatewayId.split('_');
+    const sitePrefix = gatewayIdParts[0];
+    
+    // Build error key: "site:provider"
+    const errorKey = `${sitePrefix}:${gateway.provider}`;
+    const errorCount = errors[errorKey] || 0;
+    
     const isValid = errorCount < this.ERROR_LIMIT;
 
     if (!isValid) {
       console.debug(
-        `[Filter] Gateway ${gateway.gatewayId} filtered out by error limit: provider ${gateway.provider} has ${errorCount} errors (limit: ${this.ERROR_LIMIT})`
+        `[Filter] Gateway ${gateway.gatewayId} filtered out by error limit: ${errorKey} has ${errorCount} errors (limit: ${this.ERROR_LIMIT})`
       );
     }
 

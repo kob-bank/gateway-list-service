@@ -97,7 +97,7 @@ describe('FilterService', () => {
       const batchData: BatchDataResponse = {
         gateways: [createGateway()],
         balances: { 'gw-001': 10000 },
-        errors: { 'provider-a': 5 }, // Error limit reached
+        errors: { 'gw-001:provider-a': 5 }, // Error limit reached (format: site:provider)
         providers: [createProvider()],
       };
 
@@ -109,7 +109,7 @@ describe('FilterService', () => {
       const batchData: BatchDataResponse = {
         gateways: [createGateway()],
         balances: { 'gw-001': 10000 },
-        errors: { 'provider-a': 4 }, // Below limit
+        errors: { 'gw-001:provider-a': 4 }, // Below limit (format: site:provider)
         providers: [createProvider()],
       };
 
@@ -117,13 +117,13 @@ describe('FilterService', () => {
       expect(result).toHaveLength(1);
     });
 
-    it('should filter ALL gateways when provider has error count >= 5', () => {
+    it('should filter gateways by (site, provider) combination', () => {
       const batchData: BatchDataResponse = {
         gateways: [
           createGateway({ gatewayId: '15ppb_bitzpay', provider: 'bitzpay' }),
           createGateway({ gatewayId: '20ppb_bitzpay', provider: 'bitzpay' }),
           createGateway({ gatewayId: 'smilebank_bitzpay', provider: 'bitzpay' }),
-          createGateway({ gatewayId: '15ppb_paydiwa', provider: 'paydiwa' }), // Different provider
+          createGateway({ gatewayId: '15ppb_paydiwa', provider: 'paydiwa' }),
         ],
         balances: {
           '15ppb_bitzpay': 10000,
@@ -132,8 +132,10 @@ describe('FilterService', () => {
           '15ppb_paydiwa': 10000,
         },
         errors: {
-          'bitzpay': 5, // Provider bitzpay has 5 errors
-          'paydiwa': 0, // Provider paydiwa is fine
+          '15ppb:bitzpay': 5,      // Only 15ppb_bitzpay has errors
+          '20ppb:bitzpay': 2,      // 20ppb_bitzpay is fine
+          'smilebank:bitzpay': 0,  // smilebank_bitzpay is fine
+          '15ppb:paydiwa': 0,      // 15ppb_paydiwa is fine
         },
         providers: [
           createProvider({ provider: 'bitzpay' }),
@@ -142,9 +144,13 @@ describe('FilterService', () => {
       };
 
       const result = filterService.evaluateFilters(batchData);
-      // All bitzpay gateways should be filtered out
-      expect(result).toHaveLength(1);
-      expect(result[0].gatewayId).toBe('15ppb_paydiwa');
+      // Only 15ppb_bitzpay should be filtered out
+      expect(result).toHaveLength(3);
+      expect(result.map(g => g.gatewayId).sort()).toEqual([
+        '15ppb_paydiwa',
+        '20ppb_bitzpay',
+        'smilebank_bitzpay',
+      ]);
     });
 
     it('should include gateways with low balance (balance filter removed)', () => {
@@ -210,8 +216,8 @@ describe('FilterService', () => {
           'gw-002': 1000,
         },
         errors: {
-          'provider-a': 4, // Below limit
-          'provider-b': 5, // At limit (should be filtered)
+          'gw-001:provider-a': 4, // Below limit (format: site:provider)
+          'gw-002:provider-b': 5, // At limit (should be filtered)
         },
         providers: [
           createProvider({ provider: 'provider-a' }),
