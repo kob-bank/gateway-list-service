@@ -24,7 +24,7 @@ app.post('/v3/gateway', async (c) => {
     if (!site || typeof site !== 'string') {
       return c.json(
         {
-          success: false,
+          status: false,
           error: 'Missing or invalid site parameter',
         },
         400
@@ -40,7 +40,7 @@ app.post('/v3/gateway', async (c) => {
       console.warn(`[API] Cache miss for site: ${site}`);
       return c.json(
         {
-          success: false,
+          status: false,
           error: 'Gateway list not available. Worker may be initializing.',
           code: 'CACHE_MISS',
         },
@@ -48,20 +48,18 @@ app.post('/v3/gateway', async (c) => {
       );
     }
 
-    // Return cached, pre-filtered gateway list
+    // Return cached, pre-filtered gateway list (V2 format)
     return c.json({
-      success: true,
-      data: {
-        gateways: cachedData.gateways || [],
-        cachedAt: cachedData.timestamp || null,
-        site,
-      },
+      status: true,
+      site,
+      correlationId: crypto.randomUUID(),
+      gateway: cachedData.gateways || [],
     });
   } catch (error) {
     console.error('[API] Error processing /v3/gateway:', error);
     return c.json(
       {
-        success: false,
+        status: false,
         error: 'Internal server error',
         message: error instanceof Error ? error.message : 'Unknown error',
       },
