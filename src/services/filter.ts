@@ -223,8 +223,11 @@ export class FilterService {
       return true; // No time restriction
     }
 
+    // Use Bangkok timezone (Asia/Bangkok = UTC+7)
+    // operateTime values are in Bangkok time
     const now = new Date();
-    const currentTime = now.getHours() * 60 + now.getMinutes();
+    const bangkokTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+    const currentTime = bangkokTime.getHours() * 60 + bangkokTime.getMinutes();
 
     const [openHour, openMin] = openingTime.split(':').map(Number);
     const [closeHour, closeMin] = closingTime.split(':').map(Number);
