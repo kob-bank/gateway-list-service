@@ -32,27 +32,29 @@ jobs:
         env:
           NODE_ENV: test
 
-      - name: Get latest git tag
+      - name: Get version from Chart.yaml
         id: tag_version
         run: |
-          git fetch --tags
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          VERSION=${LATEST_TAG#v}
-          echo "new_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          # Read version from Chart.yaml (source of truth)
+          VERSION=$(grep '^version:' chart/Chart.yaml | awk '{print $2}')
+          NEW_TAG="v${VERSION}"
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
           echo "new_version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Using git tag: $LATEST_TAG (version: $VERSION)"
+          echo "Using version from Chart.yaml: $VERSION (tag: $NEW_TAG)"
 
-      - name: Update package.json and Chart.yaml
+      - name: Update package.json
         run: |
-          # Update package.json
+          # Update package.json to match Chart.yaml version
           jq '.version = "${{ steps.tag_version.outputs.new_version }}"' package.json > package.json.tmp
           mv package.json.tmp package.json
-          
-          # Update Chart.yaml
-          sed -i "s/^version: .*/version: ${{ steps.tag_version.outputs.new_version }}/" chart/Chart.yaml
-          sed -i "s/^appVersion: .*/appVersion: \"${{ steps.tag_version.outputs.new_version }}\"/" chart/Chart.yaml
-          
-          echo "Updated package.json and Chart.yaml to version ${{ steps.tag_version.outputs.new_version }}"
+          echo "Updated package.json to version ${{ steps.tag_version.outputs.new_version }}"
+
+      - name: Create git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a ${{ steps.tag_version.outputs.new_tag }} -m "Release ${{ steps.tag_version.outputs.new_tag }}"
+          git push origin ${{ steps.tag_version.outputs.new_tag }}
 
       - name: Create a GitHub release
         uses: ncipollo/release-action@v1
