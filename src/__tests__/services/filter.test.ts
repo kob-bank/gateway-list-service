@@ -93,11 +93,11 @@ describe('FilterService', () => {
       expect(result[0].gatewayId).toBe('gw-001');
     });
 
-    it('should filter out gateways with error count >= 5', () => {
+    it('should filter out gateways with error count >= 3', () => {
       const batchData: BatchDataResponse = {
         gateways: [createGateway()],
         balances: { 'gw-001': 10000 },
-        errors: { 'provider-a': 5 }, // Error limit reached
+        errors: { 'provider-a': 3 }, // Error limit reached
         providers: [createProvider()],
       };
 
@@ -105,11 +105,11 @@ describe('FilterService', () => {
       expect(result).toEqual([]);
     });
 
-    it('should include gateways with error count < 5', () => {
+    it('should include gateways with error count < 3', () => {
       const batchData: BatchDataResponse = {
         gateways: [createGateway()],
         balances: { 'gw-001': 10000 },
-        errors: { 'provider-a': 4 }, // Below limit
+        errors: { 'provider-a': 2 }, // Below limit
         providers: [createProvider()],
       };
 
@@ -169,7 +169,7 @@ describe('FilterService', () => {
       expect(result.map((g) => g.gatewayId)).toContain('gw-003');
     });
 
-    it('should use errorLimit = 5 (hardcoded)', () => {
+    it('should use errorLimit = 3 (hardcoded)', () => {
       const batchData: BatchDataResponse = {
         gateways: [
           createGateway({ gatewayId: 'gw-001', provider: 'provider-a' }),
@@ -180,8 +180,8 @@ describe('FilterService', () => {
           'gw-002': 1000,
         },
         errors: {
-          'provider-a': 4, // Below limit
-          'provider-b': 5, // At limit (should be filtered)
+          'provider-a': 2, // Below limit
+          'provider-b': 3, // At limit (should be filtered)
         },
         providers: [
           createProvider({ provider: 'provider-a' }),
