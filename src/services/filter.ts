@@ -268,10 +268,22 @@ export class FilterService {
       return false;
     }
 
-    // Check 3: Provider must be active (isActive=true AND isDisabled=false)
-    if (!provider.isActive || provider.isDisabled) {
+    // Check 3: Provider must have isActive/isDisabled fields (configured providers only)
+    // Legacy providers without these fields are considered too old and filtered out
+    // Note: Manager API currently doesn't return these fields, so we check if they exist in the object
+    const hasStatusFields = 'isActive' in provider || 'isDisabled' in provider;
+    if (!hasStatusFields) {
       console.debug(
-        `[Filter] Gateway ${gateway.gatewayId} filtered out: provider ${gateway.provider} is inactive (isActive=${provider.isActive}, isDisabled=${provider.isDisabled})`
+        `[Filter] Gateway ${gateway.gatewayId} filtered out: provider ${gateway.provider} has no status configuration (legacy provider)`
+      );
+      return false;
+    }
+
+    // Check 4: Provider must be active (isActive != false AND isDisabled != true)
+    // Treat null/undefined as active (backwards compatible for providers being set up)
+    if (provider.isActive === false || provider.isDisabled === true) {
+      console.debug(
+        `[Filter] Gateway ${gateway.gatewayId} filtered out: provider ${gateway.provider} is disabled (isActive=${provider.isActive}, isDisabled=${provider.isDisabled})`
       );
       return false;
     }
@@ -280,7 +292,7 @@ export class FilterService {
   }
 
   /**
-   * Filter 4: Error count must be less than ERROR_LIMIT (5)
+   * Filter 5: Error count must be less than ERROR_LIMIT (3)
    */
   private checkErrorLimit(
     gateway: Gateway,
