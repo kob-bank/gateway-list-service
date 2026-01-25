@@ -6,7 +6,7 @@ High-performance API service for serving pre-filtered gateway lists using Bun + 
 
 This service serves pre-computed gateway lists from Redis cache with <10ms response time:
 - Reads from Redis cache (no database queries on request)
-- Filters out sensitive `providerConfig` before returning to frontend
+- Filters out sensitive `providerConfig` and `providerUrl` before returning to frontend
 - Using Bun runtime (8-9x faster than Node.js)
 - High throughput: ~130k req/s
 
@@ -18,7 +18,7 @@ This service serves pre-computed gateway lists from Redis cache with <10ms respo
    - Hono web framework on Bun runtime
    - Serves `/v3/gateway` endpoint
    - Reads from Redis cache
-   - Filters `providerConfig` out before returning
+   - Filters `providerConfig` and `providerUrl` out before returning
    - High throughput: ~130k req/s
 
 2. **Background Worker** - MOVED TO `gateway-list-builder`
