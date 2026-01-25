@@ -1,45 +1,45 @@
 # Gateway List Service
 
-High-performance microservice for pre-computed gateway list filtering using Bun + Hono.
+High-performance API service for serving pre-filtered gateway lists using Bun + Hono.
 
 ## Overview
 
-This service improves gateway list performance from ~1500ms to <10ms by:
-- Pre-computing filtered gateway lists every 15 seconds
-- Serving from Redis cache (no database queries on request)
+This service serves pre-computed gateway lists from Redis cache with <10ms response time:
+- Reads from Redis cache (no database queries on request)
+- Filters out sensitive `providerConfig` and `providerUrl` before returning to frontend
 - Using Bun runtime (8-9x faster than Node.js)
-- Deploying as separate microservice with Kubernetes CronJob
+- High throughput: ~130k req/s
 
-## Architecture
+## Architecture (Refactored)
 
 ### Components
 
-1. **API Server** (`api.ts`)
+1. **API Server** (`api.ts`) - THIS SERVICE
    - Hono web framework on Bun runtime
    - Serves `/v3/gateway` endpoint
-   - Reads only from Redis cache
+   - Reads from Redis cache
+   - Filters `providerConfig` and `providerUrl` out before returning
    - High throughput: ~130k req/s
 
-2. **Background Worker** (`worker.ts`)
-   - Runs as Kubernetes CronJob (every 1 minute)
-   - Fetches data from manager API
-   - Evaluates 5 filters (errorLimit=5 hardcoded)
-   - Updates Redis cache every 15 seconds
+2. **Background Worker** - MOVED TO `gateway-list-builder`
+   - Separate service (not part of this repo)
+   - Syncs gateway data from payment-manager
+   - Applies filters and writes to Redis cache
+   - See: `gateway-list-builder` repo
 
 3. **Cache Strategy**
    - Primary cache: 30s TTL (fresh data)
    - Stale cache: 1 hour TTL (fallback)
-   - Graceful degradation on worker failure
+   - Written by `gateway-list-builder`
+   - Read by this service
 
-### Filters (V3 - No depositAmount)
+### Data Flow
 
-The service applies 5 filters WITHOUT `depositAmount` parameter:
-
-1. **Status**: Gateway must be active/enabled
-2. **Time Range**: Current time within gateway's operating hours
-3. **Provider**: Gateway must have valid provider
-4. **Error Limit**: Error count < 5 (hardcoded, not configurable)
-5. **Balance Limit**: Balance > gateway's minLimit (simple check)
+```
+gateway-list-builder → Redis cache → gateway-list-service → Frontend
+                                  ↘
+                                   payment-ui (with config)
+```
 
 ## API Endpoints
 

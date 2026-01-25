@@ -4,10 +4,8 @@
   "description": "High-performance gateway list microservice using Bun + Hono",
   "type": "module",
   "scripts": {
-    "api": "bun run src/api.ts",
-    "worker": "bun run src/worker.ts",
-    "dev:api": "bun --watch src/api.ts",
-    "dev:worker": "bun --watch src/worker.ts",
+    "start": "bun run src/api.ts",
+    "dev": "bun --watch src/api.ts",
     "test": "bun test",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\""

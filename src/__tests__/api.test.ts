@@ -13,6 +13,8 @@ mock.module('ioredis', () => {
                 provider: 'provider-a',
                 minLimit: 100,
                 maxLimit: 50000,
+                providerConfig: { agentId: 'secret-123', apiKey: 'key-456' }, // Sensitive data
+                providerUrl: 'http://provider-backend:3105', // Internal URL
               },
             ],
             timestamp: new Date().toISOString(),
@@ -130,6 +132,15 @@ describe('API Server', () => {
       expect(data).toHaveProperty('site', 'site1');
       expect(data).toHaveProperty('correlationId');
       expect(data).toHaveProperty('gateway');
+      
+      // Verify sensitive data is filtered out (security test)
+      const gateway = data.gateway[0];
+      expect(gateway).not.toHaveProperty('providerConfig');
+      expect(gateway).not.toHaveProperty('providerUrl');
+      
+      // Verify expected fields are still present
+      expect(gateway).toHaveProperty('gatewayId');
+      expect(gateway).toHaveProperty('provider');
     });
 
     it('should return 400 for missing site parameter', async () => {
