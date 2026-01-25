@@ -48,12 +48,18 @@ app.post('/v3/gateway', async (c) => {
       );
     }
 
+    // Filter out providerConfig and providerUrl (sensitive data) before returning to frontend
+    const gatewaysWithoutConfig = (cachedData.gateways || []).map((gw: any) => {
+      const { providerConfig, providerUrl, ...rest } = gw;
+      return rest;
+    });
+
     // Return cached, pre-filtered gateway list (V2 format)
     return c.json({
       status: true,
       site,
       correlationId: crypto.randomUUID(),
-      gateway: cachedData.gateways || [],
+      gateway: gatewaysWithoutConfig,
     });
   } catch (error) {
     console.error('[API] Error processing /v3/gateway:', error);
