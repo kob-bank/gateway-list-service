@@ -223,19 +223,36 @@ export class FilterService {
       return true; // No time restriction
     }
 
-    // Use Bangkok timezone (Asia/Bangkok = UTC+7)
-    // operateTime values are in Bangkok time
-    const now = new Date();
-    const bangkokTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
-    const currentTime = bangkokTime.getHours() * 60 + bangkokTime.getMinutes();
-
     const [openHour, openMin] = openingTime.split(':').map(Number);
     const [closeHour, closeMin] = closingTime.split(':').map(Number);
 
     const startTime = openHour * 60 + openMin;
     const endTime = closeHour * 60 + closeMin;
 
-    const isValid = currentTime >= startTime && currentTime <= endTime;
+    // Treat as 24h if: same time, or patterns like "23:59-00:00", "00:00-23:59"
+    const is24Hours =
+      startTime === endTime ||
+      (startTime === 23 * 60 + 59 && endTime === 0) ||
+      (startTime === 0 && endTime === 23 * 60 + 59);
+
+    if (is24Hours) {
+      return true; // Open 24 hours, no filter
+    }
+
+    // Use Bangkok timezone (Asia/Bangkok = UTC+7)
+    const now = new Date();
+    const bangkokTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+    const currentTime = bangkokTime.getHours() * 60 + bangkokTime.getMinutes();
+
+    // Handle overnight time ranges (e.g., 22:00-06:00)
+    let isValid: boolean;
+    if (endTime < startTime) {
+      // Overnight: valid if current >= start OR current <= end
+      isValid = currentTime >= startTime || currentTime <= endTime;
+    } else {
+      // Normal: valid if current >= start AND current <= end
+      isValid = currentTime >= startTime && currentTime <= endTime;
+    }
 
     if (!isValid) {
       console.debug(
