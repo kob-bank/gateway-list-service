@@ -82,9 +82,43 @@ api:
         - ALL
     readOnlyRootFilesystem: true
 
-# Worker Configuration
-worker:
+# Worker Deployment Configuration (NEW - replaces CronJob)
+# Runs as long-running Deployment with configurable sync interval
+workerDeployment:
   enabled: true
+  replicas: 1
+
+  # Sync interval in milliseconds (default: 5 seconds)
+  intervalMs: 5000
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  podAnnotations: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+
+# Worker CronJob Configuration (DEPRECATED - use workerDeployment instead)
+workerCronjob:
+  enabled: false  # Disabled by default, use workerDeployment
 
   # CronJob schedule (every 1 minute)
   schedule: "*/1 * * * *"

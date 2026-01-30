@@ -1,0 +1,75 @@
+{{- if .Values.workerDeployment.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gateway-list-service.fullname" . }}-worker
+  labels:
+    {{- include "gateway-list-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.workerDeployment.replicas }}
+  selector:
+    matchLabels:
+      {{- include "gateway-list-service.worker.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.workerDeployment.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "gateway-list-service.worker.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "gateway-list-service.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.workerDeployment.podSecurityContext | nindent 8 }}
+      containers:
+        - name: worker
+          securityContext:
+            {{- toYaml .Values.workerDeployment.securityContext | nindent 12 }}
+          image: {{ include "gateway-list-service.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["bun", "run", "src/worker-loop.ts"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "gateway-list-service.fullname" . }}
+          env:
+            - name: WORKER_INTERVAL_MS
+              value: {{ .Values.workerDeployment.intervalMs | quote }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gateway-list-service.fullname" . }}-secret
+                  key: redis-password
+                  optional: true
+            - name: INTERNAL_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gateway-list-service.fullname" . }}-secret
+                  key: internal-api-token
+          resources:
+            {{- toYaml .Values.workerDeployment.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.workerDeployment.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.workerDeployment.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.workerDeployment.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
