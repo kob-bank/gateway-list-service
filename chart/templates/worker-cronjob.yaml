@@ -1,4 +1,4 @@
-{{- if .Values.worker.enabled }}
+{{- if .Values.workerCronjob.enabled }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -7,21 +7,21 @@ metadata:
     {{- include "gateway-list-service.labels" . | nindent 4 }}
     app.kubernetes.io/component: worker
 spec:
-  schedule: {{ .Values.worker.schedule | quote }}
-  concurrencyPolicy: {{ .Values.worker.concurrencyPolicy }}
-  successfulJobsHistoryLimit: {{ .Values.worker.successfulJobsHistoryLimit }}
-  failedJobsHistoryLimit: {{ .Values.worker.failedJobsHistoryLimit }}
+  schedule: {{ .Values.workerCronjob.schedule | quote }}
+  concurrencyPolicy: {{ .Values.workerCronjob.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.workerCronjob.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.workerCronjob.failedJobsHistoryLimit }}
   jobTemplate:
     metadata:
       labels:
         {{- include "gateway-list-service.worker.selectorLabels" . | nindent 8 }}
     spec:
-      activeDeadlineSeconds: {{ .Values.worker.activeDeadlineSeconds }}
+      activeDeadlineSeconds: {{ .Values.workerCronjob.activeDeadlineSeconds }}
       template:
         metadata:
           annotations:
             checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-            {{- with .Values.worker.podAnnotations }}
+            {{- with .Values.workerCronjob.podAnnotations }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           labels:
@@ -33,12 +33,12 @@ spec:
           {{- end }}
           serviceAccountName: {{ include "gateway-list-service.serviceAccountName" . }}
           securityContext:
-            {{- toYaml .Values.worker.podSecurityContext | nindent 12 }}
+            {{- toYaml .Values.workerCronjob.podSecurityContext | nindent 12 }}
           restartPolicy: OnFailure
           containers:
             - name: worker
               securityContext:
-                {{- toYaml .Values.worker.securityContext | nindent 16 }}
+                {{- toYaml .Values.workerCronjob.securityContext | nindent 16 }}
               image: {{ include "gateway-list-service.image" . }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               command: ["bun", "run", "src/worker.ts"]
@@ -58,22 +58,22 @@ spec:
                       name: {{ include "gateway-list-service.fullname" . }}-secret
                       key: internal-api-token
               resources:
-                {{- toYaml .Values.worker.resources | nindent 16 }}
+                {{- toYaml .Values.workerCronjob.resources | nindent 16 }}
               volumeMounts:
                 - name: tmp
                   mountPath: /tmp
           volumes:
             - name: tmp
               emptyDir: {}
-          {{- with .Values.worker.nodeSelector }}
+          {{- with .Values.workerCronjob.nodeSelector }}
           nodeSelector:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.worker.affinity }}
+          {{- with .Values.workerCronjob.affinity }}
           affinity:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.worker.tolerations }}
+          {{- with .Values.workerCronjob.tolerations }}
           tolerations:
             {{- toYaml . | nindent 12 }}
           {{- end }}
